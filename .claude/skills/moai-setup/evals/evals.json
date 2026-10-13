@@ -1,0 +1,17 @@
+{
+  "skill_name": "moai-setup",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "도구 확인은 완료됐다고 가정하고 setup의 질문·저장 계획만 dry-run하라. GitHub 호출·파일 수정·커밋·push 금지. 합성 명단 pc2, pc3이고 기존 역할 키는 없으며 legacy Area ownership에는 Touches가 겹치면 다른 PC로 배정하는 규칙이 남아 있다. Round 3에서 두 역할 질문을 사용자에게 제시한 뒤 답변이 일반 구현 pc3, bug·improve pc2라고 가정해 저장값·보고 표를 제시하라. 기존 Areas·assignee는 보존하고 PC 번호로 역할을 추측하지 말라.",
+      "expected_output": "일반 구현/버그·개선 두 질문에 pc2·pc3 선택지를 제시. IMPLEMENTATION_PC=pc3, MAINTENANCE_PC=pc2를 사용자 답으로 저장할 계획. 역할 표와 기존 정보 보존, 공개 승인 별도. 구 공통 배정 규칙은 diff·승인 후 부분 갱신하고 PC 행·설정·이력은 초기화하지 않음.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "setup 재실행 질문만 dry-run하라. 실제 도구 실행·쓰기 금지. A: pc2 한 대. B: pc2~pc5 네 대와 기존 IMPLEMENTATION_PC=pc5, MAINTENANCE_PC=pc3. C: B에서 pc5를 제거해 등록 PC가 pc2~pc4뿐. D: 사용자가 두 담당 모두 pc3 선택. A~D의 역할 질문·추천·검증·저장 계획을 비교하라.",
+      "expected_output": "A는 두 값 pc2로 지정·보고. B는 assignee 질문과 별도 Round 3, 기존 pc5/pc3 선택을 추천하며 한 라운드 최대4문항/선택지2~4개. C는 pc5를 이어받지 않고 재선택. D는 동일 PC 두 역할 허용. 기존 이슈 자동 이동 없음.",
+      "files": []
+    }
+  ]
+}

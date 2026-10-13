@@ -1,0 +1,41 @@
+{
+  "skill_name": "moai-spec",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "발행 전 배정 계획만 dry-run하라. GitHub 호출·파일 수정·발행·커밋·push 금지. 합성 명단 pc2(assignee=demo-builder), pc3(assignee=demo-maintainer). IMPLEMENTATION_PC=pc2, MAINTENANCE_PC=pc3, 충돌 없음, pc3에는 다른 unblocked spec이 있어 바쁘다. A: Source:none 일반 기능 2티켓. B: Source:#101 kind:bug 2티켓. C: Source:#102 kind:improve 2티켓. D: Source:none kind:improve 1티켓. PC·부모/자식 라벨·assignee·첫 본문 줄·Source를 제시하라. 두 담당 설정을 반대로 바꾼 경우와 assignee가 빈 경우도 짧게 확인하라.",
+      "expected_output": "A는 구현 담당, B/C/D는 바쁜 상태여도 maintenance 담당. 부모/모든 자식 같은 PC와 해당 assignee, 빈 assignee 생략. 부모 첫 줄 Tickets:N 다음 Source이며 부모 kind:spec에 다른 kind 라벨 중복 없음. 단일 티켓 Parent:none 다음 Source. 설정을 바꾸면 배정도 반대로 동작.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "부모 생성 전 담당 확인 계획만 dry-run하라. 실제 도구 호출·쓰기 금지. 등록 PC는 pc2, pc3. A: 역할 키 없음. B: MAINTENANCE_PC=미지정. C: MAINTENANCE_PC=pc9. D: 등록 PC가 pc2 한 대뿐이고 설정 없음. 모두 직접 전달한 bug이며 PRD AC 확정. E: 유효한 MAINTENANCE_PC=pc3이나 사용자 인자 pc2. 각 경우 언제 질문/확인하고 어떤 PC를 사용할지 설명하라.",
+      "expected_output": "A/B/C는 부모 생성 전에 등록 PC 중 선택받고 임의 fallback 없음, 미등록 pc9 거부. D는 pc2 사용. E는 명시적 override 표시·확인하되 충돌 검사 유지. 지속 설정 저장은 setup 몫이며 발행 중 질문·부분 부모 생성 없음.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "충돌 계획만 dry-run하라. 실제 조회·쓰기 금지. IMPLEMENTATION_PC=pc2, MAINTENANCE_PC=pc3. 새 Source:#103 kind:bug가 domain:requests를 수정하며 pc2의 열린 #90도 같은 Touches를 갖고 main에 미머지다. #90은 새 티켓에 의존하지 않는다. A: PC1이 담당 유지+직렬화를 승인. B: 승인 없음. C: blocker 범위를 확인할 수 없음. 공개 계획의 PC·Blocked by·대기 해제 조건·발행 가능 여부를 제시하라.",
+      "expected_output": "pc2로 자동 이동하지 않고 pc3 유지. A는 영향 티켓 Blocked by:#90, 다른 spec의 main 머지+COMPLETED까지 대기. B/C는 부모 생성 전 중단. 순환·누락 검사하며 무승인 공유 token 병렬 쓰기 없음.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "재발행만 dry-run하라. 도구 호출·쓰기 금지. 현재 MAINTENANCE_PC=pc2이나 기존 부모 #200은 agent:pc3, Source:#104 kind:improve, Tickets:2이고 자식 #201(agent:pc3) 하나만 있다. A: 새 요청이 같은 계획. B: 기존 자식 라벨이 agent:pc2로 불일치. C: 원 접수 #104는 이미 [moai] promoted → spec #200 댓글로 종료됨. D: 기존 부모 Source가 누락됨. 누락 자식의 PC·중복 생성/재배정/종료·확인 범위를 설명하라.",
+      "expected_output": "A는 설정과 차이를 보고하고 PC1 확인 전 발행하지 않으며 자동 재배정 없음; 확인 후 기존 pc3와 Source로 누락 자식만 생성. B는 보고·중단. C는 #200 재사용, 새 spec·중복 종료 없음. D는 출처 확인하되 기존 PC 유지. Tickets:N·전체 수 검증.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "세션이 바뀐 grill→spec 인계만 dry-run하라. 실제 도구 호출·쓰기 금지. PRD G1 합의는 REQ-60, Source:#105 kind:improve이고 GitHub 합성 접수 라벨도 kind:improve다. 현재 요청에는 원 Issue 언급이 없다. IMPLEMENTATION_PC=pc2, MAINTENANCE_PC=pc3. A: REQ-60만 발행. B: Source:none 일반 기능도 함께 발행. C: G5 동결 이후 개선. D: Source:#106 kind:bug; #105 kind:improve. 배정·출처 보존·분리·승격 종료 조건을 설명하라.",
+      "expected_output": "A는 PRD 출처로 maintenance pc3 선택. B는 일반/maintenance 별도 spec. C는 improve 발행 금지·미구현 처리. D는 각 번호/유형 쌍 보존하고 kind 라벨 중복 없음. 승격 접수는 모든 티켓 발행·개수/PC/Source 확인 후 승인된 Drop, 원문 보존. 같은 접수 Triage는 닫지 않음.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "신규 레포 최초 발행 계획만 dry-run하라. 도구 호출·쓰기 금지. moai-setup·moai-grill 직후이며 package.json·src/app/(app)/layout.tsx·src/server/db/schema.ts가 없고 Bootstrap: kit-init 이슈도 없다. PRD는 REQ-01 할 일 엔티티 1개(CRUD 1슬라이스)와 REQ-02 완료 처리. 프로젝트명 \"할일 보드\", 레포명 todo-board. A: 그대로. B: 단일 티켓으로 충분하다고 판단될 때. C: package.json만 있는 경우. D: 닫힌 kit-init 이슈가 있는데 main에 앱이 없는 경우. 첫 이슈의 헤더·Init spec·Blocked by·발행 순서를 제시하라.",
+      "expected_output": "A/B 모두 첫 발행 티켓이 foundation이며 Bootstrap: kit-init과 ## Init spec JSON(name todo-board 형식, title 할일 보드, example:false, domains:[])을 가진다. 다른 티켓은 Bootstrap: none이고 foundation에 Blocked by. 확인 표에 Bootstrap 줄 표시. C는 불완전 초기화로 계획 중단·보고. D는 중복 생성 없이 불일치 보고·중단.",
+      "files": []
+    }
+  ]
+}

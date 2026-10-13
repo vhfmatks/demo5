@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>moai-kit 프로젝트 설계</title>
+<link rel="stylesheet" href="/kds/tokens/kds-tokens.css"><link rel="stylesheet" href="/kds/tokens/kds-base.css"><link rel="stylesheet" href="/kds/tokens/kds-components.css"><link rel="stylesheet" href="/survey.css">
+<script src="/survey.js" defer></script>
+<script src="/kds/tokens/kds-datepicker.js" defer></script>
+</head>
+<body>
+<header class="bar"><b>MOAI KIT</b><span>프로젝트 설계 설문</span><small id="dest"></small></header>
+<div class="layout">
+<form id="survey" novalidate>
+  <section>
+    <p class="eyebrow">01 / 프로젝트</p><h2>기본 정보</h2>
+    <div class="grid2">
+      <label class="kds-field"><span class="kds-field__label">프로젝트 이름 (npm)</span><input class="kds-field__input" name="name" maxlength="48" placeholder="my-app"></label>
+      <label class="kds-field"><span class="kds-field__label">서비스 제목</span><input class="kds-field__input" name="title" maxlength="80" placeholder="나의 서비스"></label>
+    </div>
+    <label class="kds-checkbox"><input type="checkbox" name="example"> 예제 도메인 포함 (요청·승인, 회의실 예약, 공개 메모 — 참고용)</label>
+    <p class="hint">프리셋은 화면·흐름 선택만 바꿉니다.</p>
+    <div id="presets" class="row"></div>
+  </section>
+  <section>
+    <p class="eyebrow">02 / 도메인 조립</p><h2>메뉴와 데이터</h2>
+    <p class="hint">도메인 1개 = 메뉴 1개 = 목록·상세·작성·수정 화면 + API + 시험. <code>title</code>(제목)·<code>memo</code>(메모)는 항상 생기므로 그 외 필드만 추가합니다. 참조 필드는 <code>users</code> 또는 앞쪽 도메인만 가리킬 수 있습니다.</p>
+    <p id="existing-hint" class="hint" hidden>이미 있는 도메인은 바꾸지 않습니다(필드 변경은 <code>K migrate</code> 로 직접). 새 도메인만 추가하고, 기존 도메인은 참조 대상으로 쓸 수 있습니다.</p>
+    <div id="existing" class="row"></div>
+    <div id="domains"></div>
+    <button type="button" class="kds-button kds-button--secondary kds-button--small" data-act="add-domain">+ 도메인 추가</button>
+  </section>
+  <section>
+    <p class="eyebrow">03 / 생성 시 적용</p><h2>레이아웃</h2>
+    <div id="applied"></div>
+  </section>
+  <section>
+    <p class="eyebrow">04 / 구현 지침</p><h2>화면·흐름 선택</h2>
+    <p class="hint">여기 선택은 <code>docs/project-structure.md</code>에 기록되고, 이후 이슈 구현이 이 기준을 따릅니다.</p>
+    <div id="guides"></div>
+  </section>
+  <section>
+    <p class="eyebrow">05 / 검토·생성</p><h2>확인하고 만들기</h2>
+    <ol id="steps"></ol>
+    <ul id="errors" class="errors"></ul>
+    <div class="row">
+      <button type="button" class="kds-button kds-button--tertiary kds-button--small" data-act="export">spec 내려받기</button>
+      <label class="kds-button kds-button--tertiary kds-button--small import">spec 불러오기<input type="file" id="import" accept="application/json,.json"></label>
+      <button type="submit" class="kds-button kds-button--primary">프로젝트 생성</button>
+    </div>
+    <p id="status" role="status" aria-live="polite"></p>
+  </section>
+</form>
+<aside class="preview" aria-label="프로토타입 미리보기">
+  <div class="row between">
+    <p class="eyebrow">LIVE PROTOTYPE</p>
+    <div class="row" role="group" aria-label="미리보기 기기·화면">
+      <button type="button" class="kds-chip" data-device="pc">PC</button>
+      <button type="button" class="kds-chip" data-device="mobile">모바일</button>
+      <button type="button" class="kds-chip" data-view="states" data-i="">상태 예시</button>
+    </div>
+  </div>
+  <p id="changed" class="changed" role="status" aria-live="polite">항목을 고르면 그 선택이 보이는 화면으로 바로 이동합니다.</p>
+  <details class="group"><summary>KDS 20261012 원본 화면 8종</summary>
+    <div class="row">
+      <a href="/kds/templates/mobile-task.html" target="_blank" rel="noreferrer">모바일 업무</a>
+      <a href="/kds/templates/mobile-feed.html" target="_blank" rel="noreferrer">모바일 피드</a>
+      <a href="/kds/templates/pc-page.html" target="_blank" rel="noreferrer">PC 기본</a>
+      <a href="/kds/templates/pc-admin.html" target="_blank" rel="noreferrer">PC 관리</a>
+      <a href="/kds/examples/mobile.html" target="_blank" rel="noreferrer">납부</a>
+      <a href="/kds/examples/mobile-pay-method.html" target="_blank" rel="noreferrer">결제수단</a>
+      <a href="/kds/examples/mobile-benefit.html" target="_blank" rel="noreferrer">혜택</a>
+      <a href="/kds/examples/pc.html" target="_blank" rel="noreferrer">요금제</a>
+    </div>
+  </details>
+  <div id="proto"></div>
+  <p class="hint">메뉴·버튼을 눌러 화면을 이동해 보세요. 표의 값은 합성 예시입니다. <span id="proto-note">도메인을 추가하기 전에는 '예시 업무'로 보여 줍니다.</span></p>
+</aside>
+</div>
+<datalist id="targets"></datalist>
+<script id="bootstrap" type="application/json">{"__BOOTSTRAP__":true}</script>
+</body>
+</html>

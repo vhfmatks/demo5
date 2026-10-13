@@ -1,0 +1,23 @@
+{
+  "skill_name": "moai-tdd",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "승인 seam은 공개 canEdit(status) 정책 함수다. OPEN은 수정 가능, DONE은 수정 불가 AC를 작은 Node fixture에서 TDD로 구현하라. 실제 RED/GREEN 명령과 결과를 기록하고 API/UI E2E는 미실행이라고 구분하라. 앱·GitHub는 수정하지 말 것.",
+      "expected_output": "행동 assertion의 실제 RED 후 최소 구현과 GREEN, 내부 mock 없음, E2E 미실행 구분",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Issue에 Test seam과 TDD seam이 모두 없다. 구현자는 사용자와 대화할 수 없다. 승인을 추정하지 않고 어떻게 처리하는지 보고하라. 파일·시험 실행은 하지 말 것.",
+      "expected_output": "BLOCKED로 워커에 누락 seam 보고, 임의 private seam 선택이나 테스트 작성 없음",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "gen이 만든 CRUD AC는 처음 실행부터 통과했다. 추가 규칙은 실제 RED/GREEN을 실행했다. API/UI 시험은 작성만 했다. 결과를 TDD, baseline, E2E로 나눠 보고하라.",
+      "expected_output": "생성 baseline을 TDD라고 주장하지 않고 추가 규칙만 RED/GREEN 근거 요구, E2E 미실행",
+      "files": []
+    }
+  ]
+}

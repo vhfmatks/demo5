@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.next/**)",
+      "Read(./package-lock.json)",
+      "Read(./drizzle/meta/**)",
+      "Read(./data/**)",
+      "Read(./test-results/**/trace.zip)",
+      "Edit(./docs/security-policy.md)",
+      "Write(./docs/security-policy.md)",
+      "Edit(./docs/issue-format.md)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/skills/moai-setup/scripts/issue-create.mjs\" --hook"
+          }
+        ]
+      }
+    ]
+  }
+}

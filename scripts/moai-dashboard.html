@@ -1,0 +1,1096 @@
+<!doctype html>
+<!-- 모아이의 하루: board of team 모아이는 털보 용사 (PC4 big screen). Reads GitHub only, two ways:
+     served by `pwsh scripts/moai-dashboard.ps1` (http://localhost:8787, GitHub reads go through that PC's gh login, no token), or
+     opened as a file (asks once for a read-only fine-grained token, kept in this browser only).
+     Optional AI opinions: add -Ai; it writes .git/moai-loop/ai.js, which this page polls. -->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>모아이의 하루</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #fbf7ec; --rule: #e2eaf4; --margin: #f2c4c4; --card: #fffdf7; --ink: #2d2a26; --muted: #857d6e; --line: #e6dcc6; --tape: #f3df98;
+    --plan: #6b9ef0; --impl: #f2944a; --qa: #58b56f; --merge: #a777f0; --idle: #ddd4c2; --sleep: #b7c6e4; --future: #fffdf7;
+    --ready: #3b7be0; --progress: #e0a100; --human: #e0532c; --done: #2e9e5b; --triage: #9a5fe0;
+    --arena: #eef6e2; --arena2: #e3efd2; --splat: #c9b8a0;
+    --hand: "Gaegu", "Nanum Pen Script", "Malgun Gothic", cursive;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #1c1f26; --rule: #252a34; --margin: #4a2c33; --card: #232833; --ink: #ecebe6; --muted: #9aa1b0; --line: #343a48; --tape: #6b5d2d;
+      --plan: #7fadf7; --impl: #f5a466; --qa: #6fd08a; --merge: #b994f7; --idle: #474c59; --sleep: #3b4a6b; --future: #232833;
+      --ready: #6a9ff2; --progress: #f2bd3b; --human: #f27450; --done: #4cc982; --triage: #b38af0;
+      --arena: #1f2a22; --arena2: #243228; --splat: #5c5346;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    color: var(--ink); font: 14px/1.45 system-ui, "Segoe UI", "Malgun Gothic", sans-serif;
+    background: linear-gradient(90deg, transparent 38px, var(--margin) 38px 40px, transparent 40px), repeating-linear-gradient(var(--paper) 0 27px, var(--rule) 27px 28px), var(--paper);
+  }
+  a { color: inherit; text-decoration: none; }
+  h1, h2, .hand { font-family: var(--hand); font-weight: 700; }
+  h2 { font-size: 21px; margin: 0 0 6px; display: flex; align-items: baseline; gap: 8px; flex: none; }
+  h2 small { font: 12px system-ui, sans-serif; color: var(--muted); font-weight: 400; margin-left: auto; }
+  code { font: 12px ui-monospace, Consolas, monospace; background: var(--paper); border: 1px dashed var(--line); padding: 0 5px; border-radius: 4px; }
+  .muted { color: var(--muted); }
+  .empty { color: var(--muted); font-family: var(--hand); font-size: 18px; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .clip { overflow: hidden; -webkit-mask-image: linear-gradient(#000 82%, transparent); mask-image: linear-gradient(#000 82%, transparent); }
+
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; padding: 8px 24px 0 56px; flex: none; }
+  header h1 { font-size: 40px; margin: 0; letter-spacing: 1px; white-space: nowrap; }
+  header h1 small { font-size: 24px; color: var(--muted); }
+  header h1 .m { display: inline-block; animation: nod 3s ease-in-out infinite; }
+  header h1 .m:nth-child(2) { animation-delay: -1s; } header h1 .m:nth-child(3) { animation-delay: -2s; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 18px; align-items: center; font-family: var(--hand); font-size: 21px; }
+  .meta .box { border-bottom: 2px solid var(--ink); padding: 0 6px; }
+  .meta button { font-size: 18px; background: none; border: 0; cursor: pointer; }
+  .live { width: 10px; height: 10px; border-radius: 50%; background: var(--done); display: inline-block; animation: pulse 2s infinite; }
+  .stale .live { background: var(--human); }
+
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.75fr) minmax(0, 1.05fr); gap: 18px; padding: 0 20px 10px 56px; }
+  .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: 12px 6px 6px; }
+  .grow { display: flex; flex-direction: column; }
+  .fill { min-height: 0; }
+  /* big screen: everything fits one viewport, nothing scrolls; long lists fade out at the bottom */
+  @media (min-width: 1024px) {
+    html, body { height: 100%; overflow: hidden; }
+    body { display: flex; flex-direction: column; }
+    .cols { flex: 1; min-height: 0; }
+    .col { min-height: 0; overflow: hidden; }
+    .col > .panel { flex: none; }
+    .col > .grow { flex: 1 1 0; min-height: 0; }
+    .col > .grow.big { flex-grow: 1.4; }
+    .fill { flex: 1 1 0; }
+  }
+  @media (max-width: 1023px) { .cols { grid-template-columns: 1fr; padding-left: 16px; padding-right: 16px; } header { padding-left: 16px; } .arena { height: 260px; } .lane .list { max-height: 300px; } }
+
+  .panel { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; box-shadow: 0 2px 0 var(--line); min-width: 0; }
+  .panel::before { content: ""; position: absolute; top: -9px; left: 50%; width: 80px; height: 18px; margin-left: -40px; background: var(--tape); opacity: .8; transform: rotate(-2deg); border-radius: 2px; }
+  .col > .panel:nth-child(odd) { transform: rotate(-.3deg); }
+  .col > .panel:nth-child(even) { transform: rotate(.25deg); }
+
+  /* left: 생활계획표 2개 (PC1 사람 · PC2·PC3 에이전트) */
+  .pie { width: 100%; display: block; overflow: visible; }
+  .pie .w { stroke: var(--ink); stroke-width: 1.3; filter: url(#crayon); }
+  .pie .w.future { stroke-dasharray: 3 3; stroke-width: .8; }
+  .pie .w.now { animation: glow 2s ease-in-out infinite; }
+  .pie text { font-family: var(--hand); fill: var(--ink); text-anchor: middle; dominant-baseline: middle; }
+  .pie .hr { font-size: 9px; fill: var(--muted); }
+  .pie .lbl { font-size: 10px; font-weight: 700; }
+  .pie .hand { transition: transform 1s; }
+  .pie .hand line { stroke: var(--human); stroke-width: 2.5; stroke-linecap: round; }
+  .pie[data-zoom] { cursor: zoom-in; }
+  .zoom { font-size: 16px; background: none; border: 0; cursor: pointer; padding: 0 4px; }
+  .rethink:disabled { opacity: .5; cursor: progress; animation: spin 1.2s linear infinite; }
+  #pieBig { width: min(92vh, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 14px 20px; background: var(--card); color: var(--ink); border: 2px solid var(--ink); border-radius: 12px; }
+  #pieBig::backdrop { background: rgba(0,0,0,.45); }
+  #pieBig h2 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  #pieBig .pie { max-height: calc(100vh - 170px); }
+  #pieBig .legend { font-size: 22px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 2px 12px; justify-content: center; margin-top: 4px; font-family: var(--hand); font-size: 17px; flex: none; }
+  .legend i { display: inline-block; width: 14px; height: 14px; border: 1.5px solid var(--ink); border-radius: 3px; vertical-align: -2px; margin-right: 4px; }
+
+  /* middle: 진행 + 협업 고리 + 사냥터 + 보드 */
+  .progress { display: grid; grid-template-columns: 116px 1fr; gap: 14px; align-items: center; }
+  .ring { position: relative; width: 116px; height: 116px; }
+  .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 12; }
+  .ring .bg { stroke: var(--line); }
+  .ring .fg { stroke: var(--done); stroke-linecap: round; stroke-dasharray: 263.9; stroke-dashoffset: 263.9; transition: stroke-dashoffset 1.6s cubic-bezier(.2,.8,.2,1); filter: url(#crayon); }
+  .ring .v { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; font-family: var(--hand); line-height: 1; }
+  .ring .v b { font-size: 32px; display: block; }
+  .ring .v span { font-size: 13px; }
+  .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+  .kpi { border: 1.5px dashed var(--line); border-radius: 8px; padding: 4px 6px; text-align: center; }
+  .kpi b { font-family: var(--hand); font-size: 32px; line-height: 1; display: block; font-variant-numeric: tabular-nums; }
+  .kpi span { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .kpi.hot b { color: var(--human); animation: shake .6s ease-in-out infinite; }
+
+  .flow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(70px, 100px) minmax(0, 1fr) minmax(70px, 100px) minmax(0, 1fr); align-items: center; }
+  .node { display: grid; justify-items: center; text-align: center; gap: 1px; min-width: 0; }
+  .node .nm { font-family: var(--hand); font-size: 26px; font-weight: 700; line-height: 1; color: var(--c); }
+  .node .job { font-size: 11px; color: var(--muted); }
+  .node .step { font-size: 12px; line-height: 1.35; height: 2.7em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+  .arrow { position: relative; height: 58px; display: grid; align-content: center; justify-items: center; opacity: .4; transition: opacity .6s; }
+  .arrow.on { opacity: 1; }
+  .arrow .tag { font-size: 11.5px; white-space: nowrap; margin-bottom: 4px; }
+  .arrow .tag b, .back .tag b { font-family: var(--hand); font-size: 18px; }
+  .arrow .line { position: relative; width: 100%; height: 3px; background: repeating-linear-gradient(90deg, var(--c) 0 8px, transparent 8px 14px); }
+  .arrow .line::after { content: ""; position: absolute; right: -3px; top: -5px; border: 6.5px solid transparent; border-left: 10px solid var(--c); border-right: 0; }
+  .arrow.on .line { animation: march .7s linear infinite; }
+  .tok { position: absolute; font-size: 16px; opacity: 0; pointer-events: none; }
+  .arrow .tok { top: 34px; left: 0; }
+  .arrow.on .tok { animation: travel 2.4s ease-in-out infinite; }
+  .back { grid-column: 1 / -1; position: relative; height: 22px; margin: 6px 16.5% 10px; border: 2.5px solid var(--qa); border-top: 0; border-radius: 0 0 18px 18px; opacity: .4; transition: opacity .6s; }
+  .back.on { opacity: 1; }
+  .back::before { content: ""; position: absolute; left: -8.5px; top: -9px; border: 7px solid transparent; border-bottom: 11px solid var(--qa); border-top: 0; }
+  .back .tag { position: absolute; left: 50%; bottom: -11px; transform: translateX(-50%); background: var(--card); padding: 0 8px; font-size: 11.5px; white-space: nowrap; }
+  .back .tok { bottom: 2px; right: 0; }
+  .back.on .tok { animation: travelback 3s ease-in-out infinite; }
+
+  .pill { font-size: 12px; font-weight: 600; padding: 0 8px; border-radius: 999px; border: 1.5px solid currentColor; white-space: nowrap; }
+  .ava { position: relative; display: inline-block; font-size: 42px; line-height: 1.05; }
+  .character { display: inline-block; width: 1.4em; height: 1.4em; object-fit: contain; vertical-align: middle; }
+  .ava i { position: absolute; right: -8px; bottom: -2px; font-size: .45em; font-style: normal; }
+  .ava .fx { position: absolute; top: -12px; right: -12px; font-size: .4em; opacity: 0; }
+  .ava.work { animation: bob .9s ease-in-out infinite; } .ava.work .fx { animation: rise 1.4s infinite; opacity: 1; }
+  .ava.idle { animation: float 4s ease-in-out infinite; } .ava.idle .fx { animation: rise 3s infinite; opacity: 1; }
+  .ava.think { animation: tilt 2.4s ease-in-out infinite; } .ava.think .fx { animation: rise 2s infinite; opacity: 1; }
+  .ava.alert { animation: shake .5s ease-in-out infinite; filter: drop-shadow(0 0 8px var(--human)); }
+  .ava.alert .fx { opacity: 1; }
+  /* 협업 고리, member at work: spinning dashed halo + pulsing glow behind the face, filled pill with typing dots, lit node */
+  .node.busy { background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--c) 22%, transparent), transparent 68%); border-radius: 14px; }
+  .node.busy .ava::before { content: ""; position: absolute; inset: -.2em; border: 3px dashed var(--c); border-radius: 50%; animation: spin 4s linear infinite; }
+  .node.busy .ava::after { content: ""; position: absolute; inset: -.32em; z-index: -1; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--c) 60%, transparent) 0 38%, transparent 70%); animation: halo 1.6s ease-in-out infinite; }
+  .node.busy .pill { background: var(--c); border-color: var(--c); color: var(--card) !important; animation: halo-pill 1.6s ease-in-out infinite; }
+  .dots i { display: inline-block; width: 4px; height: 4px; margin-left: 2px; border-radius: 50%; background: currentColor; vertical-align: middle; animation: dot 1.2s infinite; }
+  .dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
+
+  .arena { position: relative; flex: 1 1 0; min-height: 120px; border-radius: 10px; overflow: hidden; border: 2px dashed var(--line);
+    background: radial-gradient(circle at 20% 30%, var(--arena2) 0 18%, transparent 19%), radial-gradient(circle at 75% 70%, var(--arena2) 0 22%, transparent 23%), var(--arena); }
+  .arena .bug, .arena .chaser { position: absolute; left: 0; top: 0; margin: -18px 0 0 -18px; width: 36px; text-align: center; will-change: transform; }
+  .arena .bug .fx { display: inline-block; animation: wiggle .3s ease-in-out infinite alternate; }
+  .arena .bug .b { display: inline-block; font-size: 28px; }
+  .arena small { display: block; font-size: 10px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+  .arena .bug.taunt .b { font-size: 40px; filter: drop-shadow(0 0 6px var(--human)); }
+  .arena .bug.taunt::after { content: "😝"; position: absolute; top: -16px; right: -16px; font-size: 16px; }
+  .arena .chaser { z-index: 2; margin: -22px 0 0 -22px; width: 44px; }
+  .arena .chaser .ava { font-size: 32px; }
+  .arena .chaser .q { position: absolute; top: -18px; left: 50%; margin-left: -8px; font-size: 16px; opacity: 0; }
+  .arena .chaser.stuck .q { opacity: 1; animation: bob 1s infinite; }
+  .arena .splat { position: absolute; transform: translate(-50%, -50%); text-align: center; z-index: 0; }
+  .arena .splat i { position: absolute; left: 50%; top: 45%; width: 46px; height: 34px; margin: -17px 0 0 -23px; background: var(--splat); opacity: .55; border-radius: 50% 40% 55% 45% / 45% 55% 40% 50%; filter: url(#crayon); }
+  .arena .splat span { position: relative; display: inline-block; font-size: 22px; transform: rotate(180deg); filter: grayscale(1); opacity: .6; }
+  .arena .splat small { position: relative; text-decoration: line-through; }
+  .arena .boom { position: absolute; z-index: 3; font-size: 40px; pointer-events: none; margin: -24px 0 0 -24px; }
+  .arena .say { position: absolute; z-index: 3; font-family: var(--hand); font-size: 22px; font-weight: 700; color: var(--human); pointer-events: none; white-space: nowrap; }
+  .arena .hint { position: absolute; inset: 6px 10px auto auto; z-index: 1; font-family: var(--hand); font-size: 16px; color: var(--muted); }
+
+  .board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); gap: 8px; }
+  .lane { display: flex; flex-direction: column; min-height: 0; }
+  .lane h3 { font-family: var(--hand); font-size: 18px; margin: 0 0 6px; display: flex; justify-content: space-between; border-bottom: 3px solid var(--c); flex: none; }
+  .lane .list { display: grid; align-content: start; gap: 6px; padding: 2px; flex: 1 1 0; min-height: 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--c); border-radius: 5px; padding: 5px 8px; font-size: 12.5px; }
+  .card .t { font-weight: 600; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card .p { font-size: 11px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card.run { animation: glow 2s ease-in-out infinite; }
+  .card.hot { animation: shake 1.2s ease-in-out infinite; }
+  .chip { font-size: 10.5px; padding: 0 5px; border-radius: 4px; background: var(--paper); color: var(--muted); margin-left: 3px; white-space: nowrap; }
+
+  /* right: 털보 용사들의 한마디 */
+  .talk { display: grid; grid-template-columns: 48px 1fr; gap: 6px; align-items: start; margin-bottom: 8px; }
+  .talk .ava { font-size: 34px; }
+  .bubble { position: relative; background: var(--paper); border: 1.5px solid var(--ink); border-radius: 14px; padding: 5px 12px; animation: pop .5s cubic-bezier(.2,1.4,.4,1) both; min-width: 0; }
+  .bubble::before { content: ""; position: absolute; left: -9px; top: 14px; border: 8px solid transparent; border-right-color: var(--ink); border-left: 0; }
+  .bubble b { font-family: var(--hand); font-size: 18px; display: block; line-height: 1.2; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .bubble .why { font-size: 12px; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .cast .bubble { font-family: var(--hand); font-size: 18px; line-height: 1.2; min-height: 2em; }
+  .cast .bubble.typing::after { content: "▍"; animation: blink 1s steps(1) infinite; }
+  .meme { position: relative; height: 180px; border-radius: 10px; overflow: hidden; display: flex; align-items: center; gap: 10px; padding: 8px 12px 14px; text-align: center; background: linear-gradient(135deg, var(--plan), var(--merge)); }
+  .meme .e { flex: none; max-width: 1.4em; font-size: 56px; line-height: 1; animation: float 3s ease-in-out infinite; }
+  .meme .tt, .meme .bt { flex: 1 1 0; min-width: 0; font: 700 28px/1.2 var(--hand); color: #fff; text-shadow: 0 0 2px #000, 0 0 4px #000, 0 2px 3px rgba(0,0,0,.5); word-break: keep-all; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .meme .bt { font-size: 24px; }
+  .meme .timer { position: absolute; left: 0; bottom: 0; width: 100%; height: 5px; background: rgba(255,255,255,.85); transform-origin: left; transform: scaleX(0); animation: timer linear forwards; }
+  #cast { display: flex; flex-direction: column; justify-content: space-evenly; overflow: hidden; } #cast .talk { margin-bottom: 0; }
+  .race .row { display: grid; grid-template-columns: 44px 1fr 40px; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .race .row .ava { font-size: 28px; }
+  .race .track { position: relative; height: 26px; border-radius: 13px; background: var(--paper); border: 1.5px solid var(--line); overflow: hidden; }
+  .race .bar { height: 100%; width: 0; border-radius: 13px; background: var(--c); transition: width 1.4s cubic-bezier(.2,.8,.2,1); filter: url(#crayon); }
+  .race .who { position: absolute; left: 10px; top: 0; line-height: 24px; font-family: var(--hand); font-size: 17px; font-weight: 700; }
+  .race .pts { font-family: var(--hand); font-size: 22px; text-align: right; }
+  .race .total { font-family: var(--hand); font-size: 20px; text-align: center; }
+
+  #toast { position: fixed; top: 16px; left: 50%; z-index: 20; transform: translate(-50%, -150%); transition: transform .5s cubic-bezier(.2,1.4,.4,1); background: var(--ink); color: var(--paper); padding: 10px 22px; border-radius: 999px; font-family: var(--hand); font-size: 26px; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+  #toast.on { transform: translate(-50%, 0); }
+  .confetti { position: fixed; top: 0; width: 9px; height: 14px; z-index: 19; pointer-events: none; border-radius: 2px; }
+  #err { margin: 4px 20px 0 56px; padding: 6px 14px; border: 2px solid var(--human); border-radius: 8px; color: var(--human); background: var(--card); flex: none; }
+  #prefs { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(0,0,0,.35); }
+  #prefs form { background: var(--card); border: 2px solid var(--ink); border-radius: 12px; padding: 16px 20px; width: min(660px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; display: grid; gap: 10px; }
+  #prefs fieldset { border: 1.5px dashed var(--line); border-radius: 8px; margin: 0; padding: 6px 12px 10px; display: grid; gap: 8px; }
+  #prefs legend { font: 700 18px var(--hand); padding: 0 4px; }
+  #prefs fieldset > label, #connFile label { display: grid; gap: 2px; font-size: 13px; }
+  #prefs input { font: inherit; padding: 5px 8px; border: 1.5px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); min-width: 0; }
+  #prefs input[type=checkbox] { width: 18px; height: 18px; vertical-align: -3px; }
+  #prefs .mem { display: grid; grid-template-columns: 96px 1fr 52px 52px 100px; gap: 6px; align-items: center; font-size: 12px; }
+  #prefs .mem .face { text-align: center; font-size: 24px; }
+  #prefs select { font-size: 18px; padding: 2px; border: 1.5px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); }
+  #prefs .row { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; font-size: 13px; }
+  #prefs button { font: 700 17px var(--hand); padding: 5px 14px; border-radius: 8px; border: 2px solid var(--ink); background: var(--paper); color: var(--ink); cursor: pointer; }
+  #prefs button[type=submit] { background: var(--tape); }
+  #prefs .btns { display: flex; gap: 8px; justify-content: flex-end; }
+  .no-meme .memep { display: none !important; }
+  .calm *, .calm *::before, .calm *::after { animation: none !important; transition: none !important; }
+  [hidden] { display: none !important; }
+
+  /* short screens (e.g. 1366x768), last so it wins: drop the meme, keep three caster lines, tighten everything */
+  @media (min-width: 1024px) and (max-height: 860px) {
+    .memep, h2 small.desc { display: none; } .cast .talk:nth-child(n+4) { display: none; } header h1 { font-size: 30px; } .col { gap: 12px; }
+    .panel { padding: 8px 12px; } h2 { font-size: 18px; margin-bottom: 4px; } .ava { font-size: 34px; } .talk { margin-bottom: 5px; } .talk .ava { font-size: 28px; }
+    .node .step { -webkit-line-clamp: 1; height: 1.4em; } .arena { min-height: 70px; } .race .row { margin-bottom: 3px; } .race .track { height: 20px; } .race .who { line-height: 18px; } .race .row .ava { font-size: 22px; }
+    .ring { width: 96px; height: 96px; } .ring .v b { font-size: 25px; } .ring .v span { font-size: 11px; } .progress { grid-template-columns: 96px 1fr; } .kpi b { font-size: 26px; }
+  }
+  @keyframes nod { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-8deg); } }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 var(--done); } 100% { box-shadow: 0 0 0 10px transparent; } }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes halo { 0%, 100% { opacity: .35; transform: scale(.9); } 50% { opacity: 1; transform: scale(1.12); } }
+  @keyframes halo-pill { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 10px 2px var(--c); } }
+  @keyframes dot { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+  @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px) rotate(2deg); } }
+  @keyframes tilt { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
+  @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px) rotate(-2deg); } 75% { transform: translateX(3px) rotate(2deg); } }
+  @keyframes rise { 0% { transform: translateY(6px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(-14px); opacity: 0; } }
+  @keyframes wiggle { from { transform: rotate(-9deg); } to { transform: rotate(9deg); } }
+  @keyframes glow { 0%, 100% { box-shadow: 0 0 0 0 transparent; stroke-width: 1.3; } 50% { box-shadow: 0 0 10px 1px var(--progress); stroke-width: 3; } }
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes ink { from { background: var(--tape); } to { background: transparent; } }
+  @keyframes blink { 50% { opacity: 0; } }
+  @keyframes march { to { background-position: 14px 0; } }
+  @keyframes travel { 0% { left: 0; opacity: 0; } 15%, 85% { opacity: 1; } 100% { left: calc(100% - 18px); opacity: 0; } }
+  @keyframes travelback { 0% { right: 0; opacity: 0; } 10%, 90% { opacity: 1; } 100% { right: calc(100% - 18px); opacity: 0; } }
+  @keyframes timer { to { transform: scaleX(1); } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="crayon"><feTurbulence type="fractalNoise" baseFrequency=".05" numOctaves="2" seed="3" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="3"/></filter>
+</svg>
+
+<header>
+  <h1 id="title">모아이의 하루</h1>
+  <div class="meta">
+    <span class="box" id="date"></span>
+    <span>날씨: <span class="box" id="weather">…</span></span>
+    <span class="box" id="clock"></span>
+    <span id="countdown" class="muted" style="font-size:18px" title="GitHub에서 다시 읽기까지 남은 시간 (⚙️에서 주기 변경)"></span>
+    <span id="age" class="muted" style="font-size:16px"><span class="live"></span> 연결 중</span>
+    <button id="fs" type="button" title="전체 화면 (F)">⛶</button>
+    <button id="cfg" type="button" title="설정">⚙️</button>
+  </div>
+</header>
+<div id="err" hidden></div>
+
+<main class="cols">
+  <section class="col">
+    <div class="panel grow">
+      <h2 id="pieHumanTitle">📅 모아이의 생활계획표</h2>
+      <svg id="pieHuman" class="pie fill" data-zoom="Human" viewBox="-135 -135 270 270" role="img" aria-label="PC1 사람 작업 시간대 원그래프">
+        <g class="wedges"></g><g class="hours"></g>
+        <g class="hand"><line x1="0" y1="0" x2="0" y2="-96"/></g>
+        <circle r="17" fill="var(--card)" stroke="var(--ink)" stroke-width="1.3"/>
+        <text y="1" style="font-size:18px">🗿</text>
+      </svg>
+      <div id="legendHuman" class="legend"></div>
+    </div>
+    <div class="panel grow">
+      <h2 id="pieAgentTitle">📅 털보와 용사의 생활계획표</h2>
+      <svg id="pieAgent" class="pie fill" data-zoom="Agent" viewBox="-135 -135 270 270" role="img" aria-label="PC2·PC3 에이전트 작업 시간대 원그래프">
+        <g class="wedges"></g><g class="hours"></g>
+        <g class="hand"><line x1="0" y1="0" x2="0" y2="-96"/></g>
+        <circle r="17" fill="var(--card)" stroke="var(--ink)" stroke-width="1.3"/>
+        <text y="1" style="font-size:18px">🛡️</text>
+      </svg>
+      <div id="legendAgent" class="legend"></div>
+    </div>
+  </section>
+
+  <section class="col">
+    <div class="panel progress">
+      <div class="ring">
+        <svg viewBox="0 0 100 100"><circle class="bg" cx="50" cy="50" r="42"/><circle class="fg" id="ringFg" cx="50" cy="50" r="42"/></svg>
+        <div class="v"><div><b id="pct">0%</b><span id="pctSub" class="muted"></span></div></div>
+      </div>
+      <div id="kpis" class="kpis"></div>
+    </div>
+    <div class="panel"><h2>🤝 협업 고리 <small class="desc" id="crewDesc"></small></h2><div id="crew" class="flow"></div></div>
+    <div class="panel grow"><h2>🐛 버그 사냥터 <small id="arenaCount"></small></h2><div id="arena" class="arena"><span class="hint">버그 접수 → 출몰 · 담당 시작 → 추격 · 완료 → 처치</span></div></div>
+    <div class="panel grow big"><h2>📋 이슈 보드</h2><div id="board" class="board fill"></div></div>
+  </section>
+
+  <section class="col">
+    <div class="panel"><h2>🧭 다음엔 뭐 하지? <small id="nextSrc"></small><button type="button" class="zoom rethink" title="새로고침">🔄</button></h2><div id="next"></div></div>
+    <div class="panel cast grow"><h2>🎙️ 중계석 <small id="castSrc"></small><button type="button" class="zoom rethink" title="새로고침">🔄</button></h2><div id="cast" class="fill"></div></div>
+    <div class="panel memep"><h2>😂 오늘의 한마디</h2><div id="meme" class="meme"></div></div>
+    <div class="panel race"><h2>🏁 오늘의 3인 레이스</h2><div id="race"></div></div>
+  </section>
+</main>
+
+<div id="toast"></div>
+<dialog id="pieBig" aria-labelledby="pieBigTitle">
+  <h2><span id="pieBigTitle"></span><button type="button" class="zoom" id="pieBigClose" title="닫기 (Esc)">✖️</button></h2>
+  <div id="pieBigBody"></div>
+</dialog>
+<div id="prefs" hidden>
+  <form id="prefsForm" autocomplete="off">
+    <h2>⚙️ 설정 <small>이 브라우저에만 저장 · 저장하면 새로 고침</small></h2>
+    <fieldset><legend>👥 팀</legend>
+      <label>팀 이름 <input name="team" maxlength="24" required></label>
+      <div class="mem muted"><span>역할</span><span>이름</span><span>얼굴</span><span>배지</span><span>담당 PC</span></div>
+      <div id="memRows" style="display:grid;gap:6px"></div>
+    </fieldset>
+    <fieldset><legend>🖥️ 화면</legend>
+      <div class="row">
+        <label>갱신 주기 <input name="every" type="number" min="15" max="600" step="5" style="width:80px"> 초</label>
+        <label><input type="checkbox" name="motion"> 애니메이션</label>
+        <label><input type="checkbox" name="party"> 속보·꽃가루</label>
+        <label><input type="checkbox" name="meme"> 오늘의 한마디</label>
+      </div>
+      <div class="row"><button type="button" id="clearSplats">🧽 사냥터 잔상 지우기</button><span class="muted" id="splatInfo"></span></div>
+    </fieldset>
+    <fieldset><legend>🔌 연결</legend>
+      <label>GitHub 레포 (owner/name) <input name="repo" pattern="[\w.-]+/[\w.-]+" placeholder="owner/repo"></label>
+      <div id="connProxy" class="muted" style="font-size:13px"></div>
+      <div id="connFile" style="display:grid;gap:8px">
+        <label>GitHub 토큰 — fine-grained, 이 레포만, Issues·Pull requests·Contents·Metadata <b>읽기 전용</b> <input name="token" type="password" placeholder="비워 두면 저장된 토큰 유지"></label>
+        <span class="muted" style="font-size:12px">토큰은 이 브라우저의 localStorage에만 저장되고 api.github.com 외에는 보내지 않습니다. 토큰을 쓸 수 없으면 <code>pwsh scripts/moai-dashboard.ps1</code>로 여세요(그 PC의 gh 로그인 사용).</span>
+        <div class="row"><button type="button" id="forget">토큰 지우기</button></div>
+      </div>
+    </fieldset>
+    <div class="btns"><button type="button" id="prefsReset">기본값</button><button type="button" id="prefsClose">닫기</button><button type="submit">저장</button></div>
+  </form>
+</div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const short = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n) + '…' : s; };
+const pad = n => String(n).padStart(2, '0');
+const hm = iso => { const d = new Date(iso); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const minsAgo = iso => (Date.now() - Date.parse(iso)) / 60000;
+const LS = {
+  get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* private window: setup again next time */ } },
+};
+// Screen settings (⚙️): this browser only; saving reloads the page, so everything below reads them once.
+const DEF = { team: '모아이는 털보 용사', every: 30, motion: true, party: true, meme: true, members: [
+  { name: '모아이', face: '🗿', b: '📝', pc: '' }, { name: '털보', face: '🧔', b: '🔧', pc: '' }, { name: '용사', face: '🦸', b: '🗡️', pc: '' }] };
+const BADGES = ['📝', '📐', '🧭', '🔧', '⌨️', '🗡️', '🔍', '🛡️']; // faces are fixed; badges come from this list
+const clean = v => String(v ?? '').replace(/[<>&"'`]/g, '').trim(); // names go into markup as-is, so keep them plain
+const UI = (() => {
+  try {
+    const u = JSON.parse(LS.get('moai-ui') || '{}');
+    return { ...DEF, ...u, team: clean(u.team) || DEF.team, members: DEF.members.map((m, i) => { const x = (u.members || [])[i] || {}; return { name: clean(x.name) || m.name, face: m.face, b: BADGES.includes(x.b) ? x.b : m.b, pc: clean(x.pc) }; }) };
+  } catch { return DEF; }
+})();
+const [MP, MI, MQ] = UI.members;
+const fill = t => t.replace(/\{([PIQT])(F?)\}/g, (_, k, f) => k === 'T' ? UI.team : { P: MP, I: MI, Q: MQ }[k][f ? 'face' : 'name']);
+const calm = matchMedia('(prefers-reduced-motion: reduce)').matches || !UI.motion;
+const EVERY = Math.max(15, Number(new URLSearchParams(location.search).get('every')) || UI.every || 30);
+const PROXY = location.protocol !== 'file:'; // served by moai-dashboard.ps1: its gh login answers /gh/*, no token here
+const cfg = PROXY ? { repo: '', token: '' } : { repo: LS.get('moai-repo') || new URLSearchParams(location.search).get('repo') || '', token: LS.get('moai-token') || '' };
+const gh = path => 'https://github.com/' + cfg.repo + '/' + path;
+
+const CAT = {
+  plan: [MP.face, MP.name + ' 기획', 'var(--plan)'], impl: [MI.face, MI.name + ' 구현', 'var(--impl)'], qa: [MQ.face, MQ.name + ' 사냥', 'var(--qa)'], merge: ['🚀', '머지', 'var(--merge)'],
+  idle: ['☁️', '멍', 'var(--idle)'], sleep: ['💤', '꿈나라', 'var(--sleep)'], future: ['✨', '앞으로', 'var(--future)'],
+};
+const LANES = [['triage', '버그 접수', 'var(--triage)'], ['ready', '대기', 'var(--ready)'], ['in-progress', '진행 중', 'var(--progress)'], ['needs-human', '사람 확인', 'var(--human)'], ['done', '완료', 'var(--done)']];
+const BUGS = ['🐛', '🐞', '🪲', '🐜'];
+const FACE = 1; // calibration knob: set -1 if bugs crawl backwards in this OS's emoji font
+
+// ---------- GitHub (read-only; ETag makes unchanged polls free of rate limit) ----------
+const etags = new Map();
+let rate = '';
+async function api(path, raw) {
+  const url = (PROXY ? location.origin + '/gh/' : 'https://api.github.com/') + path, c = etags.get(url);
+  const headers = PROXY ? {} : { Authorization: 'Bearer ' + cfg.token, 'X-GitHub-Api-Version': '2022-11-28' };
+  headers.Accept = raw ? 'application/vnd.github.raw' : 'application/vnd.github+json';
+  if (c) headers['If-None-Match'] = c.etag;
+  const r = await fetch(url, { headers, cache: 'no-store' });
+  rate = r.headers.get('X-RateLimit-Remaining') || rate;
+  if (r.status === 304) return c.data;
+  if (r.status === 404 && raw) return '';
+  if (r.status === 401) throw new Error('토큰이 거부됨(401) — ⚙️에서 다시 설정');
+  if (!r.ok) throw new Error(path.split('?')[0] + ' → HTTP ' + r.status + (PROXY && r.status === 502 ? ' (PC4의 gh auth status 확인)' : ''));
+  const data = raw ? await r.text() : await r.json();
+  const etag = r.headers.get('ETag');
+  if (etag) etags.set(url, { etag, data });
+  return data;
+}
+
+const phases = new Map();
+async function collect() {
+  const R = 'repos/' + cfg.repo + '/', today = new Date(); today.setHours(0, 0, 0, 0);
+  const isToday = s => s && new Date(s) >= today;
+  const [tracker, prd, open, closed, docs] = await Promise.all([
+    api(R + 'contents/docs/agents/issue-tracker.md', true), api(R + 'contents/docs/prd.md', true),
+    api(R + 'pulls?state=open&per_page=100'), api(R + 'pulls?state=closed&per_page=100'), api(R + 'commits?path=docs&per_page=1'),
+  ]);
+  const setting = (k, d) => (tracker.match(new RegExp('^\\| ' + k + ' \\| (pc\\d+) \\|', 'm')) || [])[1] || d;
+  const tracked = { impl: setting('IMPLEMENTATION_PC', 'pc2'), qa: setting('MAINTENANCE_PC', 'pc3') }, impl = MI.pc || tracked.impl, qa = MQ.pc || tracked.qa;
+
+  let raw = [];
+  for (let p = 1; p <= 5; p++) { const page = await api(R + 'issues?state=all&per_page=100&page=' + p); raw = raw.concat(page); if (page.length < 100) break; }
+  raw = raw.filter(i => !i.pull_request);
+  const label = (i, pre) => ((i.labels || []).map(l => l.name).find(n => n.startsWith(pre)) || '').slice(pre.length);
+  const pcOf = new Map(raw.map(i => [i.number, label(i, 'agent:') || '-']));
+
+  const issues = [], reports = [], specTitles = [];
+  let specsToday = 0, publishedToday = 0;
+  for (const i of raw) {
+    const kind = label(i, 'kind:');
+    if (kind === 'dashboard') continue;
+    if (kind === 'bug' || kind === 'improve') reports.push(i); // every QA report: triaged, fixed or dropped
+    if (kind === 'spec') { specTitles.push(i.title); if (isToday(i.created_at)) specsToday++; continue; }
+    const done = i.state === 'closed' && i.state_reason === 'completed';
+    if (i.state === 'closed' && !done) continue; // dropped
+    if (isToday(i.created_at) && kind !== 'bug' && kind !== 'improve') publishedToday++;
+    const st = done ? 'done' : (label(i, 'status:') || 'none');
+    let phase = '';
+    if (st === 'in-progress' || st === 'needs-human') {
+      const k = i.number + '@' + i.updated_at; // phase comments bump updated_at
+      if (!phases.has(k)) {
+        // ponytail: first 100 comments only; follow the Link header if an issue ever passes 100
+        const cs = await api(R + 'issues/' + i.number + '/comments?per_page=100');
+        const m = cs.map(c => c.body || '').filter(b => b.startsWith('[moai]'));
+        phases.set(k, short(m[m.length - 1], 140));
+      }
+      phase = phases.get(k);
+    }
+    issues.push({ n: i.number, title: i.title, st, kind, phase, pc: pcOf.get(i.number), createdAt: i.created_at, updatedAt: i.updated_at, closedAt: done ? i.closed_at : null });
+  }
+
+  const merged = closed.filter(p => p.merged_at);
+  const lastMerge = merged.reduce((m, p) => Math.max(m, Date.parse(p.merged_at)), 0);
+  const docsAt = docs[0] ? Date.parse(docs[0].commit.committer.date) : 0;
+  const reqs = [...new Set(prd.match(/REQ-\d+/g) || [])];
+  const covered = new Set((raw.map(i => i.title + ' ' + (i.body || '')).join(' ').match(/REQ-[\d·,\/ -]+/g) || []).flatMap(m => m.match(/\d+/g))); // [REQ-35·37·38] covers 35, 37, 38
+  const lastReport = reports.reduce((m, i) => Math.max(m, Date.parse(i.created_at)), 0);
+  const doneToday = pc => issues.filter(i => i.pc === pc && i.st === 'done' && isToday(i.closedAt)).length;
+
+  const d = {
+    generatedAt: new Date().toISOString(), roles: { impl, qa }, tracked, issues,
+    prs: open.map(p => ({ n: p.number, title: p.title, branch: p.head.ref })),
+    merged: merged.length, mergedToday: merged.filter(p => isToday(p.merged_at)).length,
+    docsBehind: !!(lastMerge && docsAt && lastMerge > docsAt),
+    reqs: { total: reqs.length, missing: reqs.filter(r => !covered.has(r.slice(4))) },
+    qaQueue: issues.filter(i => i.st === 'done' && Date.parse(i.closedAt) > lastReport).sort((a, b) => b.closedAt.localeCompare(a.closedAt)).slice(0, 6),
+    score: {
+      plan: 3 * specsToday + publishedToday,
+      impl: 3 * doneToday(impl),
+      qa: 2 * reports.filter(i => isToday(i.created_at)).length + 3 * doneToday(qa),
+    },
+    events: await events(R, today, pcOf, impl, qa, new Set(merged.map(p => p.merge_commit_sha))),
+  };
+  d.hints = hints(d);
+  return d;
+}
+
+// Today's activity log from the repo event feed (GitHub delays it by up to a few minutes).
+// 'plan' = PC1 사람(grill·spec·docs): issues it opens, non-[moai] comments, direct pushes to the default branch.
+// ponytail: GitHub only sees PC1's output, not its Claude session time; a PC1 hook posting heartbeats would be the upgrade.
+async function events(R, today, pcOf, impl, qa, mergeShas) {
+  const cat = pc => pc === qa ? 'qa' : pc === impl ? 'impl' : 'plan', out = [];
+  for (let p = 1; p <= 3; p++) {
+    const page = await api(R + 'events?per_page=100&page=' + p);
+    for (const e of page) {
+      if (new Date(e.created_at) < today) continue;
+      const pl = e.payload || {}, iss = pl.issue || {}, n = iss.number;
+      const kind = ((iss.labels || []).map(l => l.name).find(x => x.startsWith('kind:')) || '').slice(5);
+      let x = null;
+      if (e.type === 'IssuesEvent' && pl.action === 'opened') x = kind === 'bug' || kind === 'improve' ? ['qa', '🐛', '#' + n + ' 버그 포착: ' + short(iss.title, 40)] : kind === 'dashboard' ? null : ['plan', '📝', '#' + n + ' 발행: ' + short(iss.title, 40)];
+      else if (e.type === 'IssuesEvent' && pl.action === 'closed' && iss.state_reason === 'completed') x = [cat(pcOf.get(n)), kind === 'bug' ? '🔨' : '✅', '#' + n + ' 완료: ' + short(iss.title, 40)];
+      else if (e.type === 'IssueCommentEvent' && (pl.comment?.body || '').startsWith('[moai]')) x = [cat(pcOf.get(n)), '⚙️', '#' + n + ' ' + short(pl.comment.body.replace(/^\[moai\]\s*/, ''), 46)];
+      else if (e.type === 'IssueCommentEvent' && pl.action === 'created') x = ['plan', '💬', '#' + n + ' 댓글'];
+      else if (e.type === 'PullRequestEvent' && pl.action === 'closed' && pl.pull_request?.merged) x = ['merge', '🚀', 'PR #' + pl.pull_request.number + ' 머지: ' + short(pl.pull_request.title, 36)];
+      else if (e.type === 'PushEvent' && /refs\/heads\/(spec|issue)-(\d+)/.test(pl.ref || '')) { const m = pl.ref.match(/(spec|issue)-(\d+)/); x = [cat(pcOf.get(Number(m[2]))), '⬆️', m[0] + ' 푸시']; }
+      else if (e.type === 'PushEvent' && /refs\/heads\/(main|master)$/.test(pl.ref || '') && !mergeShas.has(pl.head)) x = ['plan', '📚', 'main 푸시'];
+      if (x) out.push({ id: e.id, at: e.created_at, cat: x[0], icon: x[1], text: x[2] });
+    }
+    if (page.length < 100 || new Date(page[page.length - 1].created_at) < today) break;
+  }
+  return out;
+}
+
+// Rule-based next steps per role. The optional AI coach only ranks and rewords these.
+function hints(d) {
+  const h = [], add = (who, text, cmd) => h.push({ who, text, cmd: cmd || '' });
+  const I = d.roles.impl, Q = d.roles.qa, NM = { [I]: MI.name, [Q]: MQ.name }, by = (st, pc) => d.issues.filter(i => i.st === st && (!pc || i.pc === pc));
+  const tri = by('triage');
+  if (tri.length) { const o = tri[tri.length - 1]; add('PC1', '버그 접수 ' + tri.length + '건 분류 (가장 오래된 #' + o.n + ')', o.kind === 'bug' ? '/moai-diagnose #' + o.n : '단일 티켓 또는 /moai-grill'); }
+  by('needs-human').forEach(i => add('PC1', '#' + i.n + ' 워커가 포기함 — 마지막 [moai] 댓글 보고 ready로', 'gh issue view ' + i.n + ' --comments'));
+  if (!d.issues.some(i => i.pc === I && i.st !== 'done')) {
+    const miss = d.reqs.missing;
+    add('PC1', NM[I] + ' 할 일 없음 — ' + (miss.length ? '미발행 ' + miss.slice(0, 3).join(', ') : '다음 기능 정하기'), miss.length ? '/moai-spec' : '/moai-grill');
+  }
+  if (d.docsBehind) add('PC1', '머지 이후 문서 미반영', '/moai-docs sync');
+  if (d.qaQueue.length) add(Q.toUpperCase(), '머지됨, QA 확인: ' + d.qaQueue.map(i => '#' + i.n).join(' '), '/moai-report');
+  for (const pc of [I, Q]) {
+    const who = pc.toUpperCase(), run = by('in-progress', pc)[0], ready = by('ready', pc).length;
+    if (by('needs-human', pc).length) add(who, MP.name + ' 판단 기다리는 중');
+    else if (run) { const idle = Math.round(minsAgo(run.updatedAt)); idle > 45 ? add(who, '#' + run.n + ' ' + idle + '분째 같은 단계 — 루프 확인', 'pwsh scripts/moai-loop.ps1 ' + pc) : add(who, '#' + run.n + ' 진행 중 — 루프에 맡기고 ☕'); }
+    else if (ready) add(who, 'ready ' + ready + '건 — 루프 시작', 'pwsh scripts/moai-loop.ps1 ' + pc);
+    else add(who, pc === Q ? '새 머지 없음 — 탐색 QA 한 바퀴' : MP.name + '의 다음 이슈 기다리는 중', pc === Q ? '/moai-report' : '');
+  }
+  return h;
+}
+
+// ---------- render ----------
+let D = null, AI = null, first = true;
+// The crew. Change names, faces or roles here only.
+const roles = () => [
+  { key: 'plan', pc: 'pc1', who: 'PC1', name: MP.name, job: '기획·설계', face: MP.face, b: MP.b, c: 'var(--plan)' },
+  { key: 'impl', pc: D.roles.impl, who: D.roles.impl.toUpperCase(), name: MI.name, job: '구현', face: MI.face, b: MI.b, c: 'var(--impl)' },
+  { key: 'qa', pc: D.roles.qa, who: D.roles.qa.toUpperCase(), name: MQ.name, job: 'QA·버그 사냥', face: MQ.face, b: MQ.b, c: 'var(--qa)' },
+];
+const member = pc => roles().find(r => r.pc === pc) || roles()[0];
+// Embedded SVGs keep file:// and the read-only dashboard server self-contained.
+const CHARACTER_IMAGES = {"impl": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InRlb2xiby10aXRsZSB0ZW9sYm8tZGVzYyI+CiAgPHRpdGxlIGlkPSJ0ZW9sYm8tdGl0bGUiPu2EuOuztCDCtyDqtaztmIQ8L3RpdGxlPgogIDxkZXNjIGlkPSJ0ZW9sYm8tZGVzYyI+7ZKN7ISx7ZWcIOyImOyXvOydmCDqsJzrsJzsnpDqsIAg7KO87Zmp7IOJIOyYt+ydhCDsnoXqs6Ag64W47Yq467aB7Jy866GcIOy9lOuTnOulvCDsnpHshLHtlZjripQg66qo7Iq1LjwvZGVzYz4KICA8ZWxsaXBzZSBjeD0iMTI4IiBjeT0iMjM1IiByeD0iNzYiIHJ5PSIxMCIgZmlsbD0iI2YyOTQ0YSIgb3BhY2l0eT0iLjE2Ii8+CiAgPGcgc3Ryb2tlPSIjMmQyYTI2IiBzdHJva2Utd2lkdGg9IjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+CiAgICA8cGF0aCBkPSJNODIgMjAxIDc3IDIyNXExMiAxMCAzMCAxbDUtMTltMzMtMiA0IDIxcTE5IDcgMzEtMmwtOS0yMyIgZmlsbD0iIzVmNzU4YiIvPgogICAgPHBhdGggZD0iTTg3IDE0NlE1OSAxNTYgNTggMTk5cTMwIDI0IDczIDIwIDM5IDIgNjYtMjAtNi00NC0zNC01M1oiIGZpbGw9IiNmMjk0NGEiLz4KICAgIDxwYXRoIGQ9Im04NyAxNTYgMTMgMjcgMjktMTIgMjggMTIgMTMtMjgiIGZpbGw9IiNmZmM1OGQiLz4KICAgIDxwYXRoIGQ9Ik03MSA4MXEtMTctNy0xNyA5IDAgMTcgMTcgMThtMTEzLTI3cTE3LTcgMTcgOSAwIDE3LTE3IDE4IiBmaWxsPSIjZjJjNWE0Ii8+CiAgICA8cGF0aCBkPSJNNzIgNjBxMTMtMjcgNTUtMjYgNDctMSA1NyAzMnY1MnEtNSAzOS01NiA0MC00OC0yLTU2LTQwWiIgZmlsbD0iI2YyYzVhNCIvPgogICAgPHBhdGggZD0iTTcyIDg0cS0xNy0yNS0xLTQzIDMtMTggMjQtMTYgMTAtMTUgMjgtNyAyMS05IDM0IDYgMjUtMyAzMCAxOCAxNyAxOS0zIDQybC04LTIzLTIzLTktMjUgOS0yNi05LTIxIDExWiIgZmlsbD0iIzY1NDYzNiIvPgogICAgPHBhdGggZD0iTTgwIDQzcTktMTAgMjAtN20xNy01cTE0LTUgMjQgMyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOTA2NzRjIiBzdHJva2Utd2lkdGg9IjQiLz4KICAgIDxwYXRoIGQ9Ik03MyAxMDVxMTIgMTggMjQgOWwzMCA0IDMxLTRxMTYgNyAyNi05bC0zIDMzLTEwIDE4LTEzLTMtMTMgMTUtMTctNi0xNiA2LTE1LTE1LTEyIDMtMTEtMThaIiBmaWxsPSIjNjU0NjM2Ii8+CiAgICA8cGF0aCBkPSJNMTAzIDExNnExMi0xNCAyNS01IDEzLTkgMjYgNS0xMyAxMS0yNiAyLTEzIDktMjUtMiIgZmlsbD0iIzQ5MzUyZSIgc3Ryb2tlLXdpZHRoPSIzIi8+CiAgICA8cGF0aCBkPSJNMTIxIDk3cTcgNSAxNCAwbS0yMSAzOCA1IDhtMTgtOC0zIDEwIiBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjMiLz4KICAgIDxyZWN0IHg9Ijc5IiB5PSI3NiIgd2lkdGg9IjQyIiBoZWlnaHQ9IjI4IiByeD0iMTAiIGZpbGw9IiNmZmZkZjciIGZpbGwtb3BhY2l0eT0iLjUiLz4KICAgIDxyZWN0IHg9IjEzNSIgeT0iNzYiIHdpZHRoPSI0MiIgaGVpZ2h0PSIyOCIgcng9IjEwIiBmaWxsPSIjZmZmZGY3IiBmaWxsLW9wYWNpdHk9Ii41Ii8+CiAgICA8cGF0aCBkPSJNMTIxIDg1cTctNSAxNCAwbS02My0xaDdtOTggMGg3IiBmaWxsPSJub25lIi8+CiAgICA8cGF0aCBkPSJNOTkgODZ2N201Ni03djciIGZpbGw9Im5vbmUiIHN0cm9rZS13aWR0aD0iNCIvPgogICAgPHBhdGggZD0ibTc1IDE2NSAxMDQgMS0xMCA0OUg4NVoiIGZpbGw9IiM2ZDg1OTkiLz4KICAgIDxwYXRoIGQ9Im0xMDAgMTgwLTkgOCA5IDhtNTQtMTYgOSA4LTkgOG0tMjEtMTctOCAxOCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmZGY3IiBzdHJva2Utd2lkdGg9IjQiLz4KICAgIDxwYXRoIGQ9Ik02OCAyMTVoMTIxbC03IDlINzZaIiBmaWxsPSIjYWVjOWRiIi8+CiAgICA8cGF0aCBkPSJNNzAgMTgzcS0xNS0yLTE2IDkgMSAxMiAyMiAxMG0xMDctMThxMTctMyAxOSA4LTEgMTMtMjUgMTEiIGZpbGw9IiNmMmM1YTQiLz4KICAgIDxwYXRoIGQ9Im0yMDQgNTkgNC05IDQgOSAxMCA0LTEwIDQtNCAxMC00LTEwLTEwLTRaIiBmaWxsPSIjZjNkZjk4IiBzdHJva2Utd2lkdGg9IjMiLz4KICA8L2c+Cjwvc3ZnPgo=", "qa": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InlvbmdzYS10aXRsZSB5b25nc2EtZGVzYyI+CiAgPHRpdGxlIGlkPSJ5b25nc2EtdGl0bGUiPuyaqeyCrCDCtyBRQeyZgCDrsoTqt7gg7IKs64OlPC90aXRsZT4KICA8ZGVzYyBpZD0ieW9uZ3NhLWRlc2MiPuy0iOuhnSDrp53thqDsnZgg7J6R7J2AIOyaqeyCrOqwgCDqsoDqs7wg7LK07YGsIO2RnOyLnCDrsKntjKjrpbwg65Ok6rOgIOuyhOq3uOulvCDsgqzrg6XtlZjripQg66qo7Iq1LjwvZGVzYz4KICA8ZWxsaXBzZSBjeD0iMTI4IiBjeT0iMjM1IiByeD0iNzYiIHJ5PSIxMCIgZmlsbD0iIzU4YjU2ZiIgb3BhY2l0eT0iLjE2Ii8+CiAgPGcgc3Ryb2tlPSIjMmQyYTI2IiBzdHJva2Utd2lkdGg9IjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+CiAgICA8cGF0aCBkPSJNODMgMTMxUTY1IDE2NyA2MSAyMThsMzItOCAyOSAxMiAzMS0xMyAzMiA5cS01LTYwLTI3LTg3WiIgZmlsbD0iIzU4YjU2ZiIvPgogICAgPHBhdGggZD0ibTg0IDE0Ny0xMiA1NyAxNy01bTc2LTQ3IDggNTMtMTMtNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjM2I4MTUwIiBzdHJva2Utd2lkdGg9IjQiLz4KICAgIDxwYXRoIGQ9Im05NyAxOTctOCAyOHExMiA3IDI3IDBsNS0yM20xNy01IDYgMjhxMTYgOCAyOC0xbC0xMy0yOCIgZmlsbD0iIzZkODU5OSIvPgogICAgPHBhdGggZD0iTTkzIDEzOHEzMi0xNCA2NSAwbDEzIDU1cS0zOSAyNC04NCAwWiIgZmlsbD0iI2FlYzlkYiIvPgogICAgPHBhdGggZD0ibTExMyAxNDIgMTQgMTYgMTUtMTZtLTUyIDQzaDc2IiBmaWxsPSJub25lIiBzdHJva2U9IiM2ZDg1OTkiLz4KICAgIDxwYXRoIGQ9Ik03NSA4MHEtMTUtMi0xNCAxMyAwIDE0IDE2IDE1bTk5LTI4cTE3LTIgMTcgMTMtMSAxNC0xNiAxNSIgZmlsbD0iI2YyYzVhNCIvPgogICAgPHBhdGggZD0iTTc3IDY0cTE0LTIzIDQ5LTIzIDM5IDAgNTIgMjZ2MzlxLTYgMzctNTEgMzgtNDMtMi01MC0zOFoiIGZpbGw9IiNmMmM1YTQiLz4KICAgIDxwYXRoIGQ9Ik02OSA4MXEtMy00NCAzNS01MWwyMy03IDIzIDhxMzkgOCAzNiA1MGwtMjQtOC0zNS0xNC0zNSAxNFoiIGZpbGw9IiNhZWM5ZGIiLz4KICAgIDxwYXRoIGQ9Im0xMjcgMjUgMSAzNW0tNTIgNiAzNi0xMW0yOSAwIDM1IDExIiBmaWxsPSJub25lIiBzdHJva2U9IiNkY2VhZjAiIHN0cm9rZS13aWR0aD0iNCIvPgogICAgPHBhdGggZD0iTTExNyAyOHEtMTItMTYgNC0yMSAyMi0zIDMxIDE1bC0xMiA5IiBmaWxsPSIjNThiNTZmIi8+CiAgICA8cGF0aCBkPSJNOTMgODdxOC02IDE3IDBtMzMgMHE5LTYgMTYgMCIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgICA8cGF0aCBkPSJNMTAyIDk4djdtNTAtN3Y3bS0zNiAxNHExMSAxMCAyMiAwIiBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjQiLz4KICAgIDxwYXRoIGQ9Ik05MCAxMTJoOW01NiAwaDkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2U3OWE4NSIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgICA8cGF0aCBkPSJNODUgMTUxIDY4IDE2NyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYWVjOWRiIiBzdHJva2Utd2lkdGg9IjE2Ii8+CiAgICA8cGF0aCBkPSJtNDYgNzAgMTYgMTIgMTAgNzMtMTEgMi0yMy03MFoiIGZpbGw9IiNkY2VhZjAiIHN0cm9rZS13aWR0aD0iNCIvPgogICAgPHBhdGggZD0ibTQ3IDg2IDE0IDYyIiBmaWxsPSJub25lIiBzdHJva2U9IiNhZWM5ZGIiIHN0cm9rZS13aWR0aD0iMyIvPgogICAgPHBhdGggZD0ibTQ4IDE1OCAzMi03bS0xNiA2IDUgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2YzZGY5OCIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgICA8cGF0aCBkPSJNNzAgMTY0cS0xMy01LTE0IDUgMiAxMiAxNSA5IiBmaWxsPSIjZjJjNWE0IiBzdHJva2Utd2lkdGg9IjQiLz4KICAgIDxwYXRoIGQ9Im0xNTUgMTQ1IDMyLTEwIDMyIDE2LTcgMzlxLTggMjQtMzUgMzQtMjQtMTUtMjctMzlaIiBmaWxsPSIjM2I4MTUwIi8+CiAgICA8cGF0aCBkPSJtMTY1IDE1MyAyMS03IDIzIDExLTYgMzFxLTYgMTctMjUgMjctMTctMTItMjAtMzBaIiBmaWxsPSIjODVjZjk2IiBzdHJva2U9IiNiY2U2YjkiIHN0cm9rZS13aWR0aD0iMyIvPgogICAgPHBhdGggZD0ibTE2OCAxODAgMTAgMTEgMjEtMjUiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmZmRmNyIgc3Ryb2tlLXdpZHRoPSI3Ii8+CiAgICA8cGF0aCBkPSJNMjA1IDQzdi05bTkgMTcgOC00bS0yOCAxLTYtNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNThiNTZmIiBzdHJva2Utd2lkdGg9IjQiLz4KICA8L2c+Cjwvc3ZnPgo="};
+const characterImage = (key, name) => '<img class="character" src="' + CHARACTER_IMAGES[key] + '" alt="' + esc(name) + '" width="64" height="64">';
+// Escape untrusted text first; only known character emoji become trusted markup.
+const characterText = text => esc(text).replace(/(🧔|🦸)[🏻🏼🏽🏾🏿]?(?:‍[♂♀]️?)?️?/gu,
+  (_, face) => characterImage(face === '🧔' ? 'impl' : 'qa', face === '🧔' ? '털보' : '용사'));
+const character = r => CHARACTER_IMAGES[r.key] ? characterImage(r.key, r.name) : characterText(r.face || '');
+const avatar = (r, cls, fx) => '<span class="ava ' + (cls || '') + '">' + character(r) + '<i>' + (r.b || '') + '</i><span class="fx">' + (fx || '') + '</span></span>';
+function sum() {
+  const is = D.issues, n = st => is.filter(i => i.st === st).length, work = is.filter(i => i.st !== 'triage');
+  return {
+    total: work.length, done: n('done'), pct: work.length ? Math.round(100 * n('done') / work.length) : 0,
+    prog: n('in-progress'), ready: n('ready'), human: n('needs-human'), triage: n('triage'),
+    alive: is.filter(i => i.kind === 'bug' && i.st !== 'done').length, caught: is.filter(i => i.kind === 'bug' && i.st === 'done').length,
+    mergedToday: D.mergedToday, docsBehind: D.docsBehind,
+  };
+}
+function set(el, html) { if (el._h !== html) { el._h = html; el.innerHTML = html; return true; } return false; }
+function countUp(el, to) {
+  const from = Number(el.dataset.v || 0); el.dataset.v = to;
+  if (calm || from === to) { el.textContent = to; return; }
+  const t0 = performance.now();
+  const step = t => { const k = Math.min(1, (t - t0) / 900); el.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+  el.animate([{ transform: 'scale(1.5)' }, { transform: 'scale(1)' }], { duration: 600, easing: 'cubic-bezier(.2,1.4,.4,1)' });
+}
+
+function render(prev) {
+  const s = sum();
+  renderHeader(s);
+  renderPies();
+  renderProgress(s);
+  renderCrew(s);
+  syncArena(prev);
+  flip($('board'), renderBoard);
+  renderNext(); renderCast(s); renderRace();
+  if (prev) announce(prev, s);
+  first = false;
+}
+
+function renderHeader(s) {
+  const now = new Date();
+  $('date').textContent = now.getFullYear() + '년 ' + (now.getMonth() + 1) + '월 ' + now.getDate() + '일 ' + '일월화수목금토'[now.getDay()] + '요일';
+  $('weather').textContent = s.human ? '⛈️ 천둥번개' : s.alive ? '🌧️ 버그 비' : s.prog ? '⛅ 구름 조금' : '☀️ 맑음';
+}
+function tickClock() {
+  const now = new Date();
+  $('clock').textContent = '🕐 ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+  $('countdown').textContent = !cfg.repo ? '' : nextAt ? '⏳ 다음 갱신 ' + Math.max(0, Math.ceil((nextAt - Date.now()) / 1000)) + '초' : '🔄 갱신 중…';
+  if (!D) return;
+  const m = minsAgo(D.generatedAt), stale = m > Math.max(3, 3 * EVERY / 60);
+  $('age').classList.toggle('stale', stale);
+  $('age').innerHTML = '<span class="live"></span> ' + (m < 1 ? '방금 갱신' : Math.floor(m) + '분 전 갱신') + (stale ? ' · 연결 끊김?' : '') + (rate ? ' · API ' + esc(rate) : '');
+}
+
+// 생활계획표: blend all activity colors within each hour; later hours stay blank.
+function slots(evs) {
+  const byHour = Array.from({ length: 24 }, () => ({})), nowH = new Date().getHours();
+  evs.forEach(e => { const h = new Date(e.at).getHours(); byHour[h][e.cat] = (byHour[h][e.cat] || 0) + 1; });
+  return byHour.map((c, h) => {
+    if (h > nowH) return 'future';
+    const active = ['plan', 'impl', 'qa', 'merge'].filter(k => c[k]);
+    return active.join('+') || (h < 8 || h >= 23 ? 'sleep' : 'idle');
+  });
+}
+// Top: 모아이(PC1 사람). Bottom: 털보·용사(PC2·PC3 에이전트) and their merges.
+function renderPies() {
+  const pick = ks => D.events.filter(e => ks.includes(e.cat)), human = pick(['plan']), agent = pick(['impl', 'qa', 'merge']);
+  renderPie($('pieHuman'), $('legendHuman'), human, ['plan', 'idle', 'sleep']);
+  renderPie($('pieAgent'), $('legendAgent'), agent, ['impl', 'qa', 'merge', 'idle', 'sleep']);
+  const zoom = k => ' <button type="button" class="zoom" data-zoom="' + k + '" title="크게 보기">🔍</button>';
+  set($('pieHumanTitle'), '<span>📅 ' + esc(MP.name) + '의 생활계획표</span>' + zoom('Human'));
+  set($('pieAgentTitle'), '<span>📅 ' + characterText(MI.face) + esc(MI.name) + '와 ' + characterText(MQ.face) + esc(MQ.name) + '의 생활계획표</span>' + zoom('Agent'));
+  if ($('pieBig').open) openPie($('pieBig').dataset.k);
+}
+// 크게 보기: a live copy of the small pie; renderPies refreshes it while the dialog is open.
+function openPie(k) {
+  const svg = $('pie' + k).cloneNode(true), dlg = $('pieBig');
+  svg.removeAttribute('id'); svg.removeAttribute('data-zoom'); svg.classList.remove('fill');
+  dlg.dataset.k = k;
+  $('pieBigTitle').innerHTML = $('pie' + k + 'Title').firstChild.innerHTML;
+  const legend = $('legend' + k).cloneNode(true); legend.removeAttribute('id');
+  $('pieBigBody').replaceChildren(svg, legend);
+  if (!dlg.open) dlg.showModal();
+}
+document.addEventListener('click', e => { const z = e.target.closest('[data-zoom]'); if (z && D) openPie(z.dataset.zoom); });
+$('pieBigClose').onclick = () => $('pieBig').close();
+$('pieBig').onclick = e => { if (e.target === $('pieBig')) $('pieBig').close(); };
+function pieCategory(key) {
+  const cats = key.split('+');
+  const color = cats.reduce((mixed, cat, i) => i === 0 ? CAT[cat][2]
+    : 'color-mix(in srgb, ' + mixed + ', ' + CAT[cat][2] + ' ' + (100 / (i + 1)) + '%)', '');
+  return [cats.map(k => CAT[k][0]).join(' '), cats.map(k => CAT[k][1]).join(' + '), color];
+}
+function renderPie(svg, legend, evs, keys) {
+  const q = c => svg.querySelector('.' + c), sl = slots(evs), now = new Date(), nowH = now.getHours(), R = 100;
+  const ang = h => h / 24 * 2 * Math.PI - Math.PI / 2, pt = (h, r) => (r * Math.cos(ang(h))).toFixed(2) + ',' + (r * Math.sin(ang(h))).toFixed(2);
+  const spans = [];
+  sl.forEach((c, h) => { const last = spans[spans.length - 1]; last && last.c === c && !(h === nowH || last.h1 - 1 === nowH) ? last.h1++ : spans.push({ c, h0: h, h1: h + 1 }); });
+  const html = spans.map(sp => {
+    const w = sp.h1 - sp.h0, big = w > 12 ? 1 : 0, mid = (sp.h0 + sp.h1) / 2, [ico, name, col] = pieCategory(sp.c);
+    const d = w >= 24 ? 'M0,-' + R + 'A' + R + ',' + R + ' 0 1 1 0,' + R + 'A' + R + ',' + R + ' 0 1 1 0,-' + R + 'Z' : 'M0,0L' + pt(sp.h0, R) + 'A' + R + ',' + R + ' 0 ' + big + ' 1 ' + pt(sp.h1, R) + 'Z';
+    const lp = pt(mid, w >= 2 ? 64 : 76).split(',');
+    const size = w >= 2 ? 24 : 18, iconY = Number(lp[1]) - (w >= 2 ? 6 : 0);
+    const cats = sp.c.split('+');
+    const icon = cats.length > 1 ? cats.map((cat, i) => {
+      const p = pt(mid, 78 - (cats.length - 1 - i) * 22).split(','), image = CHARACTER_IMAGES[cat];
+      return image
+        ? '<image class="character-pie" href="' + image + '" x="' + (Number(p[0]) - 9) + '" y="' + (Number(p[1]) - 9) + '" width="18" height="18"><title>' + esc(CAT[cat][1]) + '</title></image>'
+        : '<text x="' + p[0] + '" y="' + p[1] + '" style="font-size:13px">' + esc(CAT[cat][0]) + '</text>';
+    }).join('') : CHARACTER_IMAGES[sp.c]
+      ? '<image class="character-pie" href="' + CHARACTER_IMAGES[sp.c] + '" x="' + (Number(lp[0]) - size / 2) + '" y="' + (iconY - size / 2) + '" width="' + size + '" height="' + size + '"><title>' + esc(name) + '</title></image>'
+      : '<text x="' + lp[0] + '" y="' + iconY + '" style="font-size:' + (w >= 2 ? 15 : 11) + 'px">' + esc(ico) + '</text>';
+    const label = icon + (w >= 2 && cats.length === 1 ? '<text class="lbl" x="' + lp[0] + '" y="' + (Number(lp[1]) + 10) + '">' + esc(name) + '</text>' : '');
+    return '<g class="sp" data-k="' + sp.c + sp.h0 + '-' + sp.h1 + '"><path class="w ' + cats.join(' ') + (sp.h0 === nowH ? ' now' : '') + '" d="' + d + '" fill="' + col + '"><title>' + pad(sp.h0) + '시~' + pad(sp.h1) + '시 ' + name + '</title></path>' + label + '</g>';
+  }).join('');
+  const before = new Set([...q('wedges').querySelectorAll('.sp')].map(g => g.dataset.k));
+  if (set(q('wedges'), html) && !calm) {
+    [...q('wedges').querySelectorAll('.sp')].forEach((g, i) => {
+      if (before.has(g.dataset.k)) return;
+      g.style.transformOrigin = '0 0';
+      g.animate([{ transform: 'scale(0) rotate(-30deg)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }], { duration: 700, delay: first ? i * 70 : 0, easing: 'cubic-bezier(.2,1.3,.4,1)', fill: 'backwards' });
+    });
+  }
+  set(q('hours'), Array.from({ length: 24 }, (_, h) => { const p = pt(h, 116).split(','); return '<text class="hr" x="' + p[0] + '" y="' + p[1] + '"' + (h % 6 ? '' : ' style="font-size:13px;font-weight:700;fill:var(--ink)"') + '>' + h + '</text>'; }).join(''));
+  q('hand').style.transform = 'rotate(' + ((nowH + now.getMinutes() / 60) / 24 * 360) + 'deg)';
+  const cnt = {}; evs.forEach(e => { cnt[e.cat] = (cnt[e.cat] || 0) + 1; });
+  const mixed = [...new Set(sl.filter(k => k.includes('+')))];
+  set(legend, [...keys, ...mixed].map(k => {
+    const [icon, name, color] = pieCategory(k);
+    return '<span><i style="background:' + color + '"></i>' + characterText(icon) + ' ' + characterText(name) + (cnt[k] ? ' ×' + cnt[k] : '') + (k.includes('+') ? ' (같은 시간대)' : '') + '</span>';
+  }).join(''));
+}
+
+function renderProgress(s) {
+  $('ringFg').style.strokeDashoffset = (263.9 * (1 - s.pct / 100)).toFixed(1);
+  $('pct').textContent = s.pct + '%';
+  $('pctSub').textContent = '완료 ' + s.done + ' / ' + s.total;
+  const k = [['prog', '진행 중', s.prog], ['ready', '대기', s.ready], ['human', '사람 확인', s.human, s.human > 0], ['triage', '버그 접수', s.triage, s.triage > 2], ['pr', 'PR 열림', D.prs.length], ['mt', '오늘 머지', s.mergedToday]];
+  if (!$('kpis').children.length) $('kpis').innerHTML = k.map(x => '<div class="kpi" id="k-' + x[0] + '"><b data-v="0">0</b><span>' + x[1] + '</span></div>').join('');
+  k.forEach(x => { const el = $('k-' + x[0]); el.classList.toggle('hot', !!x[3]); countUp(el.firstChild, x[2]); });
+}
+
+// 협업 고리: 모아이 → (이슈) → 털보 → (머지) → 용사 → (버그) → 모아이. A lit arrow = something is waiting for the next member.
+function renderCrew(s) {
+  const [P, I, Q] = roles();
+  const node = r => {
+    let st, cls, fx, step;
+    if (r.key === 'plan') {
+      [st, cls, fx] = s.human ? ['확인 필요', 'alert', '❗'] : s.triage ? ['분류할 것 있음', 'think', '💭'] : ['구상 중', 'idle', '✏️'];
+      step = '버그 접수 ' + s.triage + ' · 사람 확인 ' + s.human + ' · 미발행 REQ ' + D.reqs.missing.length;
+    } else {
+      const mine = D.issues.filter(i => i.pc === r.pc), now = mine.find(i => i.st === 'needs-human') || mine.find(i => i.st === 'in-progress');
+      [st, cls, fx] = mine.some(i => i.st === 'needs-human') ? ['막힘', 'alert', '❗'] : mine.some(i => i.st === 'in-progress') ? ['작업 중', 'work', '⌨️'] : mine.some(i => i.st === 'ready') ? ['루프 대기', 'think', '⏳'] : ['쉬는 중', 'idle', '💤'];
+      step = now ? '#' + now.n + ' ' + (now.phase || now.title) : '완료 ' + mine.filter(i => i.st === 'done').length + ' / ' + mine.length;
+    }
+    return '<div class="node' + (cls === 'work' ? ' busy' : '') + '" style="--c:' + r.c + '">' + avatar(r, cls, fx) + '<div class="nm">' + r.name + '</div><div class="job">' + r.who + ' · ' + r.job + '</div>' +
+      '<span class="pill" style="color:' + (cls === 'alert' ? 'var(--human)' : r.c) + '">' + st + (cls === 'work' ? '<span class="dots"><i></i><i></i><i></i></span>' : '') + '</span><div class="step" title="' + esc(step) + '">' + characterText(step) + '</div></div>';
+  };
+  const arrow = (n, ico, label, c) => '<div class="arrow' + (n ? ' on' : '') + '" style="--c:' + c + '"><span class="tag">' + ico + ' ' + label + ' <b>' + n + '</b></span><span class="line"></span><span class="tok">' + ico + '</span></div>';
+  const todo = D.issues.filter(i => i.pc === I.pc && i.st === 'ready').length;
+  set($('crew'), node(P) + arrow(todo, '📜', '할 일', P.c) + node(I) + arrow(D.qaQueue.length, '🚀', 'QA 대기', I.c) + node(Q) +
+    '<div class="back' + (s.triage ? ' on' : '') + '"><span class="tag">🐛 버그 접수 → ' + P.name + ' <b>' + s.triage + '</b></span><span class="tok">🐛</span></div>');
+}
+
+function flip(root, fn) {
+  const before = new Map([...root.querySelectorAll('[data-key]')].map(e => [e.dataset.key, e.getBoundingClientRect()]));
+  if (!fn() || calm) return;
+  root.querySelectorAll('[data-key]').forEach((e, i) => {
+    const b = before.get(e.dataset.key), a = e.getBoundingClientRect();
+    if (!b) e.animate([{ opacity: 0, transform: 'translateY(10px) scale(.85)' }, { opacity: 1, transform: 'none' }], { duration: 500, delay: first ? Math.min(i, 20) * 25 : 0, easing: 'cubic-bezier(.2,1.3,.4,1)', fill: 'backwards' });
+    else if (b.left !== a.left || b.top !== a.top) e.animate([{ transform: 'translate(' + (b.left - a.left) + 'px,' + (b.top - a.top) + 'px)' }, { transform: 'none' }], { duration: 800, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  });
+}
+function renderBoard() {
+  return set($('board'), LANES.map(([st, name, c]) => {
+    const list = D.issues.filter(i => i.st === st).sort((a, b) => st === 'done' ? b.n - a.n : a.n - b.n);
+    return '<div class="lane" style="--c:' + c + '"><h3><span>' + name + '</span><span>' + list.length + '</span></h3><div class="list clip">' +
+      (list.slice(0, 30).map(i => '<a class="card' + (st === 'in-progress' ? ' run' : st === 'needs-human' ? ' hot' : '') + '" data-key="' + i.n + '" href="' + gh('issues/' + i.n) + '" target="_blank" style="--c:' + c + '">' +
+        '<div class="t">#' + i.n + ' ' + (i.kind === 'bug' ? '🐛 ' : i.kind === 'improve' ? '✨ ' : '') + characterText(i.title) + '<span class="chip">' + esc(i.pc === '-' ? '-' : member(i.pc).name) + '</span></div>' +
+        (i.phase ? '<div class="p">' + characterText(i.phase) + '</div>' : '') + '</a>').join('') || '<span class="empty">없음</span>') + '</div></div>';
+  }).join(''));
+}
+
+// ---------- 버그 사냥터 ----------
+const A = { ents: new Map(), splats: new Set(), saved: (() => { try { return JSON.parse(LS.get('moai-splats') || '{}'); } catch { return {}; } })(), last: 0 };
+const hash = n => (Math.imul(n ^ 0x9e3779b9, 2654435761) >>> 0) / 4294967296;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const tf = o => 'translate(' + o.x.toFixed(1) + 'px,' + o.y.toFixed(1) + 'px)';
+const size = () => ({ w: $('arena').clientWidth, h: $('arena').clientHeight });
+const arenaCount = () => { $('arenaCount').textContent = '살아있는 버그 ' + [...A.ents.values()].filter(e => !e.dead).length + ' · 처치한 버그 ' + A.splats.size; };
+
+function syncArena(prev) {
+  const seen = new Set();
+  for (const b of D.issues.filter(i => i.kind === 'bug')) {
+    seen.add(b.n);
+    let e = A.ents.get(b.n);
+    if (b.st === 'done') { if (e && !e.dead) catchBug(e); else if (!e) addSplat(b.n, false); continue; }
+    if (!e) e = spawn(b, !!prev);
+    e.st = b.st; e.pc = b.pc;
+    e.el.title = '#' + b.n + ' ' + b.title;
+    e.el.classList.toggle('taunt', b.st === 'needs-human');
+    const chase = ['ready', 'in-progress', 'needs-human'].includes(b.st) && b.pc !== '-';
+    if (chase && !e.chaser) addChaser(e, b.pc);
+    if (!chase && e.chaser) { e.chaser.el.remove(); e.chaser = null; }
+    if (e.chaser) e.chaser.el.classList.toggle('stuck', b.st === 'needs-human');
+  }
+  A.ents.forEach((e, n) => { if (!seen.has(n) && !e.dead) flyAway(e); });
+  arenaCount();
+}
+function spawn(b, pop) {
+  const { w, h } = size(), el = document.createElement('a');
+  el.className = 'bug'; el.href = gh('issues/' + b.n); el.target = '_blank';
+  el.innerHTML = '<span class="fx"><span class="b">' + BUGS[b.n % BUGS.length] + '</span></span><small>#' + b.n + '</small>';
+  $('arena').appendChild(el);
+  const e = { n: b.n, el, fx: el.firstChild, face: el.firstChild.firstChild, x: 30 + hash(b.n) * (w - 60), y: 30 + hash(b.n + 7) * (h - 60), ang: hash(b.n + 3) * 6.28, dead: false, chaser: null };
+  A.ents.set(b.n, e); place(e);
+  if (!calm) e.fx.animate([{ transform: 'scale(0)' }, { transform: 'scale(1.8)' }, { transform: 'scale(1)' }], { duration: 800, delay: pop ? 0 : hash(b.n) * 600, easing: 'ease-out', fill: 'backwards' });
+  if (pop) say(e, '출몰!');
+  return e;
+}
+function addChaser(e, pc) {
+  const { w, h } = size(), el = document.createElement('div'), m = member(pc);
+  el.className = 'chaser';
+  el.innerHTML = '<span class="fx">' + avatar(m) + '</span><small>' + m.name + '</small><b class="q">❓</b>';
+  $('arena').appendChild(el);
+  e.chaser = { el, x: e.x < w / 2 ? w - 30 : 30, y: h - 30 };
+  el.style.transform = tf(e.chaser);
+  if (!calm) el.animate([{ opacity: 0, transform: tf(e.chaser) + ' scale(0)' }, { opacity: 1, transform: tf(e.chaser) }], { duration: 600, easing: 'cubic-bezier(.2,1.4,.4,1)' });
+}
+function place(e) {
+  e.el.style.transform = tf(e);
+  e.face.style.transform = 'scaleX(' + (Math.cos(e.ang) < 0 ? FACE : -FACE) + ')';
+}
+function tick(t) {
+  const dt = Math.min(0.05, (t - (A.last || t)) / 1000), { w, h } = size();
+  A.last = t;
+  A.ents.forEach(e => {
+    if (e.dead) return;
+    let sp = e.st === 'needs-human' ? 22 : 55;
+    e.ang += (Math.random() - 0.5) * 6 * dt;
+    const c = e.chaser;
+    if (c) {
+      const dx = e.x - c.x, dy = e.y - c.y, d = Math.hypot(dx, dy) || 1;
+      const cs = e.st === 'in-progress' ? 72 : e.st === 'ready' ? 28 : 0; // the chaser never quite catches it: the catch belongs to the fix
+      if (d > 44) { c.x = clamp(c.x + dx / d * cs * dt, 20, w - 20); c.y = clamp(c.y + dy / d * cs * dt, 20, h - 20); }
+      if (cs && d < 120) { const away = Math.atan2(dy, dx); e.ang += Math.atan2(Math.sin(away - e.ang), Math.cos(away - e.ang)) * Math.min(1, 5 * dt); sp = 88; }
+      c.el.style.transform = tf(c);
+    }
+    e.x += Math.cos(e.ang) * sp * dt; e.y += Math.sin(e.ang) * sp * dt;
+    if (e.x < 20 || e.x > w - 20) { e.ang = Math.PI - e.ang; e.x = clamp(e.x, 20, w - 20); }
+    if (e.y < 20 || e.y > h - 20) { e.ang = -e.ang; e.y = clamp(e.y, 20, h - 20); }
+    place(e);
+  });
+  requestAnimationFrame(tick);
+}
+function say(e, text) {
+  if (calm) return;
+  const el = document.createElement('div'); el.className = 'say'; el.innerHTML = characterText(text);
+  el.style.left = e.x + 'px'; el.style.top = (e.y - 34) + 'px';
+  $('arena').appendChild(el);
+  el.animate([{ transform: 'translate(-50%,0) scale(.5)', opacity: 0 }, { transform: 'translate(-50%,-16px) scale(1.1)', opacity: 1, offset: .3 }, { transform: 'translate(-50%,-40px)', opacity: 0 }], { duration: 1800 }).onfinish = () => el.remove();
+}
+function catchBug(e) {
+  e.dead = true;
+  const c = e.chaser, { w, h } = size(), m = member(e.pc);
+  const finish = () => {
+    e.el.remove();
+    A.saved[e.n] = [e.x / w, e.y / h];
+    LS.set('moai-splats', JSON.stringify(A.saved));
+    addSplat(e.n, true);
+    if (c) setTimeout(() => { c.el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 800, fill: 'forwards' }).onfinish = () => c.el.remove(); }, 1600);
+    arenaCount();
+  };
+  if (calm) return finish();
+  if (c) { c.el.animate([{ transform: tf(c) }, { transform: tf(e) + ' scale(1.3)' }, { transform: tf(e) }], { duration: 500, easing: 'cubic-bezier(.5,0,.5,1.4)', fill: 'forwards' }); c.x = e.x; c.y = e.y; }
+  setTimeout(() => {
+    const boom = document.createElement('div'); boom.className = 'boom'; boom.textContent = '💥';
+    boom.style.left = e.x + 'px'; boom.style.top = e.y + 'px';
+    $('arena').appendChild(boom);
+    boom.animate([{ transform: 'scale(.2) rotate(0)', opacity: 1 }, { transform: 'scale(2.2) rotate(40deg)', opacity: 0 }], { duration: 700 }).onfinish = () => boom.remove();
+    say(e, m.name + '의 일격! ' + m.b);
+    if (c) c.el.querySelector('.fx').animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-22px)' }, { transform: 'translateY(0)' }], { duration: 380, iterations: 3 });
+    e.fx.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.9) rotate(25deg)' }, { transform: 'scale(.3) rotate(180deg)', opacity: .2 }], { duration: 550, fill: 'forwards' }).onfinish = finish;
+  }, c ? 500 : 0);
+}
+function addSplat(n, fresh) {
+  if (A.splats.has(n)) return;
+  A.splats.add(n);
+  const [fx, fy] = A.saved[n] || [0.08 + hash(n + 11) * 0.84, 0.15 + hash(n + 5) * 0.72]; // bugs fixed before this screen opened land on a stable spot
+  const el = document.createElement('a');
+  el.className = 'splat'; el.href = gh('issues/' + n); el.target = '_blank'; el.title = '#' + n + ' 처치한 버그';
+  el.style.left = (fx * 100) + '%'; el.style.top = (fy * 100) + '%';
+  el.innerHTML = '<i></i><span>' + BUGS[n % BUGS.length] + '</span><small>#' + n + '</small>';
+  $('arena').prepend(el);
+  if (fresh && !calm) el.animate([{ transform: 'translate(-50%,-50%) scale(0)' }, { transform: 'translate(-50%,-50%) scale(1.4)' }, { transform: 'translate(-50%,-50%) scale(1)' }], { duration: 600 });
+}
+function flyAway(e) {
+  e.dead = true;
+  const bye = () => { e.el.remove(); if (e.chaser) e.chaser.el.remove(); };
+  if (calm) return bye();
+  say(e, '도망감 🕊️');
+  e.fx.animate([{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(-240px) rotate(-30deg)', opacity: 0 }], { duration: 1500, fill: 'forwards' }).onfinish = bye;
+}
+
+// ---------- 털보 용사들의 한마디 ----------
+function renderNext() {
+  const fromAi = AI && AI.next && AI.next.length;
+  const list = roles().map(r => (fromAi ? AI.next.find(x => String(x.who).toUpperCase() === r.who) : null) || D.hints.find(x => x.who === r.who) || { who: r.who, text: '특별히 할 일 없음 — 멍' });
+  $('nextSrc').textContent = fromAi ? 'AI 코치 · ' + Math.round(minsAgo(AI.at)) + '분 전' : '규칙 기반';
+  set($('next'), list.map((x, i) => {
+    const r = roles()[i];
+    return '<div class="talk">' + avatar(r) + '<div class="bubble"><b title="' + esc(x.text) + '">' + r.name + ': ' + characterText(x.text) + '</b><div class="why">' + (x.why ? characterText(x.why) + ' ' : '') + (x.cmd ? '<code>' + characterText(x.cmd) + '</code>' : '') + '</div></div></div>';
+  }).join(''));
+}
+function castLines(s) {
+  const [P, I, Q] = roles();
+  return [
+    '🚀 오늘 머지 ' + s.mergedToday + '개, ' + (s.mergedToday >= 3 ? I.name + ' 머지 머신 풀가동!' : s.mergedToday ? '좋은 출발입니다!' : I.name + ' 아직 몸 푸는 중'),
+    s.alive ? '🐛 버그 ' + s.alive + '마리 출몰! ' + Q.name + ' 출동 준비' : '🧹 사냥터 평화, ' + Q.name + '가 처치한 버그 ' + s.caught + '마리',
+    '📊 진행률 ' + s.pct + '% — ' + (s.pct >= 80 ? '결승선이 보입니다!' : s.pct >= 40 ? '반환점 돌았습니다' : '갈 길이 멉니다, 물 챙기세요'),
+    s.human ? '🚨 사람 확인 ' + s.human + '건, ' + P.name + ' 호출입니다!' : s.prog ? '☕ 루프가 일하는 중, 셋 다 커피 타임' : '✍️ 모두 대기 중… ' + P.name + '의 다음 이슈를 기다립니다',
+  ];
+}
+let typing = 0;
+function renderCast(s) {
+  const fromAi = AI && AI.lines && AI.lines.length, lines = fromAi ? AI.lines.slice(0, 4) : castLines(s);
+  $('castSrc').textContent = fromAi ? 'AI 캐스터' : '규칙 기반';
+  const key = lines.join('|');
+  if ($('cast')._k === key) return;
+  $('cast')._k = key;
+  $('cast').innerHTML = lines.map(() => '<div class="talk">' + avatar({ face: '🎙️' }) + '<div class="bubble"></div></div>').join('');
+  const bubbles = [...$('cast').querySelectorAll('.bubble')], run = ++typing;
+  if (calm) { bubbles.forEach((b, i) => { b.innerHTML = characterText(lines[i]); }); return; }
+  let li = 0, ci = 0;
+  const type = () => {
+    if (run !== typing || li >= lines.length) return;
+    const b = bubbles[li]; b.classList.add('typing');
+    b.innerHTML = characterText([...lines[li]].slice(0, ++ci).join(''));
+    if (ci >= [...lines[li]].length) { b.classList.remove('typing'); li++; ci = 0; setTimeout(type, 500); } else setTimeout(type, 45);
+  };
+  type();
+}
+function renderRace() {
+  const sc = D.score, max = Math.max(5, sc.plan, sc.impl, sc.qa);
+  if (!$('race').children.length) $('race').innerHTML = roles().map(r => '<div class="row">' + avatar(r) + '<div class="track"><div class="bar" id="bar-' + r.key + '" style="--c:' + r.c + '"></div><span class="who">' + r.name + '</span></div><div class="pts" id="pts-' + r.key + '">0</div></div>').join('') + '<div class="total">🏆 ' + UI.team + ' 점수 <b id="teamPts">0</b>점</div>';
+  roles().forEach(r => { $('bar-' + r.key).style.width = (100 * (sc[r.key] || 0) / max) + '%'; countUp($('pts-' + r.key), sc[r.key] || 0); });
+  countUp($('teamPts'), sc.plan + sc.impl + sc.qa);
+}
+
+// [when (null = any time), emoji, top, bottom]. {P}{I}{Q} = member names, {PF}{IF}{QF} = faces, {T} = team.
+const H = () => new Date().getHours();
+const MEMES = [
+  [s => s.human > 0, '🐶🔥', 'This is fine', s => '사람 확인 ' + s.human + '건… {P}는 괜찮다'],
+  [s => s.human > 0, '🆘', '{P} 호출', s => '사람 확인 ' + s.human + '건 대기 중'],
+  [s => s.total > 0 && s.pct === 100, '🚢', 'Ship it', () => '{T}, 다 했다. 진짜로.'],
+  [s => s.pct >= 80 && s.pct < 100, '🏁', '결승선이 보인다', s => '진행률 ' + s.pct + '%'],
+  [s => s.total > 0 && s.pct < 30, '🐢', '천 리 길도 한 걸음', s => '진행률 ' + s.pct + '%, 일단 커밋부터'],
+  [s => s.alive > 0, '{QF}', '{Q} 출동', s => '버그 ' + s.alive + '마리 출몰 중'],
+  [s => s.alive >= 3, '🎯', '버그 사냥 시즌', s => s.alive + '마리 동시 출몰'],
+  [s => s.caught > 0, '🗡️', '{Q}의 일격', s => '지금까지 ' + s.caught + '마리 처치'],
+  [s => s.triage > 0, '📮', '버그 접수함 도착', () => '{P}가 분류할 차례'],
+  [s => s.mergedToday > 0, '🚀', '머지 완료', s => '오늘 ' + s.mergedToday + '번째 발사'],
+  [s => s.mergedToday >= 3, '{IF}', '{I} 머지 머신', s => '오늘 머지 ' + s.mergedToday + '개'],
+  [s => s.docsBehind, '📚', '코드는 달리고', () => '문서는 걷는다 · /moai-docs sync'],
+  [s => s.prog > 0, '{IF}', '{I}: 내 컴퓨터에선 되는데', () => '{Q}: 그래서 E2E가 있습니다'],
+  [s => s.prog > 0, '⌨️', '루프 가동 중', () => '사람은 커피, 에이전트는 커밋'],
+  [s => s.prog === 0 && s.ready === 0, '{PF}', '{P} 기획 중…', () => '{I}·{Q}: 일 주세요 👀'],
+  [s => s.ready > 0 && s.prog === 0, '⏳', s => 'ready ' + s.ready + '건 대기', () => '루프 켜는 거 잊은 건 아니죠?'],
+  [() => new Date().getDay() === 5 && H() >= 15, '🙅', '금요일 배포 금지', () => '…는 해커톤엔 없다'],
+  [() => H() >= 22 || H() < 5, '🌙', '야근 각', () => '{I}의 수염이 자라는 시간 💧'],
+  [() => H() >= 6 && H() < 10, '☀️', '굿모닝', () => '어제의 나는 무슨 코드를 짠 걸까'],
+  [() => H() === 12, '🍚', '점심 먹고 합시다', () => '밥 먹으면 버그도 보인다'],
+  [() => H() >= 15 && H() < 16, '🍪', '오후 3시', () => '당 충전 없이 디버깅 금지'],
+  [null, '{PF}', '{P}는 말이 없다', '대신 이슈로 말한다'],
+  [null, '{IF}', '{I}는 면도할 시간이 없다', '머지할 시간도 부족하다'],
+  [null, '{QF}', '재현 안 되는 버그', '{Q}: 제 PC에선 재현됩니다'],
+  [null, '{PF}', '요구사항 변경', '{I}: (조용히 수염을 쓰다듬는다)'],
+  [null, '🗡️', '{Q}는 버그를 찾는다', '버그도 {Q}를 찾는다'],
+  [null, '🐛', '버그 아니고 기능입니다', '…라고 {Q}에게 말하지 마세요'],
+  [null, '🔁', '99개의 작은 버그', '하나 고쳤더니 117개'],
+  [null, '🙈', 'git push --force', '하지 마세요. 진짜로.'],
+  [null, '🤔', '어제는 됐는데', '오늘은 왜 안 될까'],
+  [null, '🧙', '고친 건 없는데', '됐습니다 (더 무서움)'],
+  [null, '🪦', 'TODO: 나중에 고침', '나중은 오지 않았다'],
+  [null, '🍝', '스파게티 코드', '오늘의 메뉴 아님'],
+  [null, '🦆', '러버덕 디버깅', '{P}에게 설명하다가 해결됨'],
+  [null, '📦', 'node_modules', '우주에서 가장 무거운 물체'],
+  [null, '🧹', '캐시 지우셨어요?', '그것은 마법의 주문'],
+  [null, '🔐', '.env 커밋 금지', '보안 정책 위반은 BLOCKING'],
+  [null, '🧪', '테스트 전부 통과', '근데 화면은 왜…'],
+  [null, '🎲', '가끔 실패하는 테스트', '그것은 플래키, 고쳐야 할 버그'],
+  [null, '🌀', '무한 루프', '…무한 루프 …무한 루프'],
+  [null, '📏', '탭 vs 스페이스', 'Biome이 정해 줍니다'],
+  [null, '👀', 'LGTM', '(moai-review는 진짜로 읽음)'],
+  [null, '🏗️', '리팩터링', '하는 김에 다 바꾸고 싶다'],
+  [null, '🔥', '핫픽스', '불은 끄고 문서는 나중에… 아니 지금'],
+  [null, '🧾', '커밋 메시지: fix', '무엇을 고쳤는지는 비밀'],
+  [null, '🐣', 'Hello, World', '모든 것의 시작'],
+  [null, '🔗', '이슈 → 커밋 → 테스트', '추적성은 곧 점수'],
+  [null, '⏰', '5분만 더', '(3시간 경과)'],
+  [null, '🎧', '집중 모드', '말 걸지 마세요'],
+  [null, '📱', '모바일에선 됩니다', 'PC는… 모르겠습니다'],
+  [null, '🛌', '잠은 죽어서 잔다', '…는 농담, 자고 하세요'],
+  [null, '📖', '문서를 읽었다', '놀랍게도 답이 있었다'],
+  [null, '🤖', '에이전트가 짰어요', '리뷰는 사람이 합니다'],
+  [null, '📋', 'PRD에 없는데요', '그럼 PRD에 넣읍시다'],
+  [null, '🚦', 'CI 초록불', '세상에서 제일 예쁜 색'],
+  [null, '💬', '회의 끝', '그래서… 누가 하죠?'],
+  [null, '🧩', '머지 충돌', '둘 다 맞고 둘 다 틀렸다'],
+  [null, '🕵️', 'console.log("여기")', '가장 오래된 디버거'],
+  [null, '🌱', '작은 커밋', '큰 평화'],
+  [null, '🎉', '버그 0개', '라고 말하는 순간 1개'],
+];
+const MEME_MS = 30000; // the timer bar under the card runs for the same time
+let memeI = 0, deck = [], memeT = 0;
+function rotateMeme() {
+  clearTimeout(memeT); memeT = setTimeout(rotateMeme, MEME_MS);
+  if (!D) return;
+  // every other slide fits the moment (if anything does); the rest is a shuffled deck of evergreen ones
+  const s = sum(), hot = MEMES.filter(m => m[0] && m[0](s)), el = $('meme');
+  if (!deck.length) deck = MEMES.filter(m => !m[0]).sort(() => Math.random() - 0.5); // ponytail: sort-shuffle is fine for a meme deck
+  const m = hot.length && memeI % 2 === 0 ? hot[(memeI / 2) % hot.length] : deck.pop();
+  memeI++;
+  const txt = v => fill(typeof v === 'function' ? v(s) : v);
+  const html = '<div class="tt">' + characterText(txt(m[2])) + '</div><div class="e">' + characterText(txt(m[1])) + '</div><div class="bt">' + characterText(txt(m[3])) + '</div><i class="timer" style="animation-duration:' + MEME_MS + 'ms"></i>';
+  if (calm) { el.innerHTML = html; return; }
+  el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'rotate(-3deg) scale(.92)' }], { duration: 250 }).onfinish = () => {
+    el.innerHTML = html;
+    el.animate([{ opacity: 0, transform: 'rotate(3deg) scale(1.08)' }, { opacity: 1, transform: 'none' }], { duration: 400, easing: 'cubic-bezier(.2,1.4,.4,1)' });
+  };
+}
+
+// ---------- 속보 + 꽃가루 ----------
+const toasts = [];
+let toasting = false;
+function toast(text) { if (!UI.party) return; toasts.push(text); if (!toasting) nextToast(); }
+function nextToast() {
+  const t = toasts.shift();
+  if (!t) { toasting = false; return; }
+  toasting = true; $('toast').innerHTML = characterText(t); $('toast').classList.add('on');
+  setTimeout(() => { $('toast').classList.remove('on'); setTimeout(nextToast, 600); }, 3800);
+}
+function confetti(n) {
+  if (calm || !UI.party) return;
+  const colors = ['var(--plan)', 'var(--impl)', 'var(--qa)', 'var(--merge)', 'var(--progress)'];
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement('i'); c.className = 'confetti';
+    c.style.left = (Math.random() * 100) + 'vw'; c.style.background = colors[i % colors.length];
+    document.body.appendChild(c);
+    c.animate([{ transform: 'translate(0,-20px) rotate(0)' }, { transform: 'translate(' + ((Math.random() - 0.5) * 240) + 'px,105vh) rotate(' + (Math.random() * 900) + 'deg)' }],
+      { duration: 5000 + Math.random() * 3000, delay: Math.random() * 500, easing: 'cubic-bezier(.3,.6,.6,1)' }).onfinish = () => c.remove();
+  }
+}
+function announce(prev, s) {
+  const was = new Map(prev.issues.map(i => [i.n, i.st]));
+  for (const i of D.issues) {
+    const w = was.get(i.n);
+    if (i.st === 'done' && w && w !== 'done') { toast((i.kind === 'bug' ? member(i.pc).face + ' ' + member(i.pc).name + '의 버그 처치! #' : '🎉 완료! #') + i.n + ' ' + short(i.title, 24)); confetti(i.kind === 'bug' ? 60 : 120); }
+    else if (i.st === 'triage' && !w) toast('🐛 ' + MQ.name + '의 레이더에 버그 포착! #' + i.n + ' ' + short(i.title, 24));
+    else if (i.st === 'needs-human' && w !== 'needs-human') toast('🚨 #' + i.n + ' ' + MP.name + ' 확인 필요');
+  }
+  if (D.merged > prev.merged) { toast('🚀 PR 머지! 오늘 ' + s.mergedToday + '개째'); confetti(80); }
+}
+
+// ---------- loop ----------
+let timer = 0, nextAt = 0; // nextAt = 0 while a refresh is running
+async function refresh() {
+  clearTimeout(timer);
+  if (!cfg.repo || (!PROXY && !cfg.token)) { if (!PROXY) openPrefs(); return; }
+  nextAt = 0; tickClock();
+  try {
+    const d = await collect(), prev = D;
+    D = d; render(prev);
+    if (!prev) rotateMeme();
+    $('err').hidden = true;
+  } catch (e) { $('err').hidden = false; $('err').innerHTML = characterText('😵 ' + e.message); }
+  timer = setTimeout(refresh, EVERY * 1000);
+  nextAt = Date.now() + EVERY * 1000; tickClock();
+}
+// Optional AI opinions from scripts/moai-dashboard.ps1 -Ai (claude -p runs there; the browser holds no Claude key).
+window.moaiAi = a => { if (PROXY && cfg.home && cfg.repo !== cfg.home) return; AI = a; if (D) { renderNext(); renderCast(sum()); } };
+function pollAi() {
+  const s = document.createElement('script');
+  s.src = (PROXY ? 'ai.js' : '../.git/moai-loop/ai.js') + '?t=' + Date.now();
+  s.onload = s.onerror = () => s.remove();
+  document.head.appendChild(s);
+}
+// 🔄 on 다음엔 뭐 하지?·중계석: with -Ai the ps1 reruns both agents now and we watch ai.js for up to 3 min
+// (the 60 s poll catches a later answer); otherwise the panels are rule-based, so re-read GitHub.
+async function rethink() {
+  const btns = document.querySelectorAll('.rethink'), was = AI && AI.at;
+  btns.forEach(b => { b.disabled = true; });
+  const r = PROXY && cfg.repo === cfg.home ? await fetch('ai/rerun', { method: 'POST' }).catch(() => null) : null;
+  if (r && r.ok) for (let i = 0; i < 36 && (AI && AI.at) === was; i++) { await new Promise(ok => setTimeout(ok, 5000)); pollAi(); }
+  else { $('next')._h = $('cast')._k = ''; if (nextAt) await refresh(); } // nextAt = 0: a refresh is already running
+  btns.forEach(b => { b.disabled = false; });
+}
+document.querySelectorAll('.rethink').forEach(b => { b.onclick = rethink; });
+function openPrefs() {
+  const f = $('prefsForm'), jobs = ['기획·설계', '구현', 'QA·버그 사냥'], tracked = D ? [null, D.tracked.impl, D.tracked.qa] : [null, 'pc2', 'pc3'];
+  f.team.value = UI.team; f.every.value = EVERY; f.motion.checked = UI.motion; f.party.checked = UI.party; f.meme.checked = UI.meme;
+  $('memRows').innerHTML = UI.members.map((m, i) => '<div class="mem"><span>' + jobs[i] + '</span>' +
+    '<input name="n' + i + '" maxlength="12" required value="' + esc(m.name) + '"><span class="face">' + character({ ...m, key: ['plan', 'impl', 'qa'][i] }) + '</span>' +
+    '<select name="b' + i + '">' + BADGES.map(b => '<option' + (b === m.b ? ' selected' : '') + '>' + b + '</option>').join('') + '</select>' +
+    (i ? '<input name="p' + i + '" maxlength="8" pattern="[Pp][Cc]\\d+" title="예: pc2 (비우면 issue-tracker.md 값)" placeholder="' + tracked[i] + ' (tracker)" value="' + esc(m.pc) + '">' : '<span class="muted">PC1 (사람)</span>') + '</div>').join('');
+  $('connProxy').hidden = !PROXY; $('connFile').hidden = PROXY;
+  f.repo.required = !PROXY; f.token.required = !PROXY && !cfg.token; f.repo.value = cfg.repo; f.token.value = '';
+  f.repo.placeholder = PROXY ? (cfg.home || 'owner/repo') + ' (비우면 ps1을 실행한 레포)' : 'owner/repo';
+  $('connProxy').textContent = '이 PC의 gh 로그인으로 읽습니다 · 토큰 없음 · gh 계정이 볼 수 있는 레포만';
+  $('splatInfo').textContent = '자리 기억 중인 잔상 ' + Object.keys(A.saved).length + '개';
+  $('prefs').hidden = false;
+}
+$('cfg').onclick = openPrefs;
+$('prefsClose').onclick = () => { if (PROXY || cfg.token) $('prefs').hidden = true; };
+$('prefs').onclick = e => { if (e.target === $('prefs')) $('prefsClose').onclick(); };
+const fullscreen = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => { /* browser refused: F11 still works */ });
+$('fs').onclick = fullscreen;
+document.addEventListener('fullscreenchange', () => { $('fs').title = document.fullscreenElement ? '전체 화면 끄기 (F)' : '전체 화면 (F)'; });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('prefs').hidden) $('prefsClose').onclick();
+  else if ((e.key === 'f' || e.key === 'F') && $('prefs').hidden && !$('pieBig').open && !e.ctrlKey && !e.metaKey && !e.altKey) fullscreen();
+});
+$('prefsReset').onclick = () => { LS.set('moai-ui', null); location.reload(); };
+$('clearSplats').onclick = () => { LS.set('moai-splats', null); location.reload(); };
+$('forget').onclick = () => { LS.set('moai-token', null); location.reload(); };
+$('prefsForm').onsubmit = e => {
+  e.preventDefault();
+  const f = e.target;
+  LS.set('moai-ui', JSON.stringify({
+    team: clean(f.team.value) || DEF.team, every: Math.min(600, Math.max(15, Number(f.every.value) || 30)),
+    motion: f.motion.checked, party: f.party.checked, meme: f.meme.checked,
+    members: UI.members.map((m, i) => ({ name: clean(f['n' + i].value), b: f['b' + i].value, pc: i ? clean(f['p' + i].value).toLowerCase() : '' })),
+  }));
+  LS.set('moai-repo', clean(f.repo.value) || null);
+  if (!PROXY && f.token.value.trim()) LS.set('moai-token', f.token.value.trim());
+  location.reload();
+};
+
+$('title').innerHTML = UI.members.map((m, i) => '<span class="m">' + character({ ...m, key: ['plan', 'impl', 'qa'][i] }) + '</span>').join('') + ' 모아이의 하루 <small>· 팀 ' + UI.team + '</small>';
+$('crewDesc').textContent = fill('{P}가 이슈를 내면 {I}가 만들고, {Q}가 확인해서 버그를 돌려준다');
+document.documentElement.classList.toggle('calm', !UI.motion);
+document.documentElement.classList.toggle('no-meme', !UI.meme);
+tickClock(); setInterval(tickClock, 1000);
+setInterval(() => { if (D) renderPies(); }, 60000);
+pollAi(); setInterval(pollAi, 60000);
+if (!calm) requestAnimationFrame(tick);
+if (PROXY) { fetch('config').then(r => r.json()).then(c => { cfg.home = c.repo; cfg.repo = LS.get('moai-repo') || c.repo; refresh(); }, e => { $('err').hidden = false; $('err').textContent = '😵 moai-dashboard.ps1에 연결 못 함: ' + e.message; }); }
+else refresh();
+</script>
+</body>
+</html>

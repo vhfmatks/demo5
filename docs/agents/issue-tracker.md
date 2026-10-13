@@ -37,7 +37,7 @@ Multi-line bodies: write to a temp file and pass `--body-file <file>` (works in 
 
 | PC | Areas (`domain:<x>` tokens, `/moai-spec` §2) | Assignee (GitHub login) |
 |---|---|---|
-| pc2 | <fill at kickoff> |  |
+| pc2 | domain:posts, domain:comments |  |
 | pc3 | <fill at kickoff> |  |
 
 ## Commands
